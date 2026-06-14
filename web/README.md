@@ -48,9 +48,11 @@ without re-picking.
 
 ## Known limits vs. the desktop app
 
-- **Serial number** isn't shown: characteristic `0x2A25` is on the
-  [Web Bluetooth blocklist](https://github.com/WebBluetoothCG/registries) and
-  can't be read from a page. Everything else in Device Info works.
+- **Serial number** can't be read directly: characteristic `0x2A25` is on the
+  [Web Bluetooth blocklist](https://github.com/WebBluetoothCG/registries) and is
+  unreadable from a page. It's instead derived from the System ID (`0x2A23`),
+  which carries the same MAC, so it matches the desktop app. Everything else in
+  Device Info works.
 - **No firmware update** — that's Bluetooth Classic / RFCOMM, which browsers
   can't speak. (The Python library doesn't implement flashing either; see
   [`FIRMWARE_PROTOCOL.md`](../klipsch_ble/FIRMWARE_PROTOCOL.md).)

@@ -533,7 +533,7 @@ async def handle_command(f: KlipschClient, low: str):
             f"Name         : {di.name or '?'}",
             f"Manufacturer : {di.manufacturer or '?'}",
             f"Firmware rev : {di.firmware_revision or '?'}",
-            f"Software rev : {di.software_revision or '?'}",
+            f"MCU firmware : {di.software_revision or '?'}",
             f"Hardware rev : {di.hardware_revision or '?'}",
             f"Model number : {di.model_number or '?'}",
             f"Serial number: {di.serial_number or '?'}",

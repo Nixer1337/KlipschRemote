@@ -23,7 +23,7 @@
     ["category", "Model", "modelDisplay"],
     ["business", "Manufacturer", "manufacturer"],
     ["memory", "Firmware", "firmware_revision"],
-    ["terminal", "Software", "software_revision"],
+    ["terminal", "MCU Firmware Version", "software_revision"],
     ["developer_board", "Hardware", "hardware_revision"],
     ["numbers", "Model number", "model_number"],
     ["qr_code_2", "Serial number", "serial_number"],
@@ -157,11 +157,11 @@
     ABOUT_FIELDS.forEach(([icon, label, key], i) => {
       if (i) els.aboutList.append(hairline());
       const value = info[key];
-      // The serial number (0x2A25) is on the Web Bluetooth blocklist and can't be
-      // read from a page; explain the dash on hover instead of leaving it cryptic.
+      // 0x2A25 is on the Web Bluetooth blocklist, so the serial is normally
+      // derived from the System ID. If even that fails, explain the dash on hover.
       const blocked = key === "serial_number" && !value;
       const title = blocked
-        ? ' title="Web Bluetooth blocks reading the serial number — use the desktop app"'
+        ? ' title="Web Bluetooth blocks reading the serial number, and it couldn\'t be derived — use the desktop app"'
         : "";
       const row = document.createElement("div");
       row.className = "list-item";

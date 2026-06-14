@@ -36,7 +36,7 @@ ABOUT_FIELDS: list[tuple[str, str, str]] = [
     (ft.Icons.CATEGORY, "Model", "model"),
     (ft.Icons.BUSINESS, "Manufacturer", "manufacturer"),
     (ft.Icons.MEMORY, "Firmware", "firmware_revision"),
-    (ft.Icons.TERMINAL, "Software", "software_revision"),
+    (ft.Icons.TERMINAL, "MCU Firmware Version", "software_revision"),
     (ft.Icons.DEVELOPER_BOARD, "Hardware", "hardware_revision"),
     (ft.Icons.NUMBERS, "Model number", "model_number"),
     (ft.Icons.QR_CODE_2, "Serial number", "serial_number"),

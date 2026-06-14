@@ -209,6 +209,17 @@
     if (!bytes || !bytes.length) return null;
     return Array.from(bytes, (b) => b.toString(16).padStart(2, "0").toUpperCase()).join(":");
   }
+  // The DIS Serial Number (0x2A25) is on the Web Bluetooth blocklist, so a page
+  // can't read it. The firmware sets the serial to the BD_ADDR, which is also the
+  // DIS System ID (0x2A23) encoded as an EUI-64: the 6-byte MAC with the filler
+  // 0xFF 0xFE inserted in the middle. Strip the filler to recover the serial,
+  // matching exactly what the desktop app reads straight from 0x2A25.
+  function serialFromSystemId(bytes) {
+    if (!bytes || bytes.length !== 8) return null;
+    if (bytes[3] !== 0xff || bytes[4] !== 0xfe) return null;
+    const mac = [bytes[0], bytes[1], bytes[2], bytes[5], bytes[6], bytes[7]];
+    return mac.map((b) => b.toString(16).padStart(2, "0").toUpperCase()).join("");
+  }
   function subDetectedFromBytes(bytes) {
     if (!bytes || !bytes.length) return null;
     // big-endian int == 1 => detected
@@ -399,18 +410,22 @@
     get modelDisplay() { return (MODELS[this.model] || MODELS.unknown).display; }
 
     async deviceInfo() {
+      const systemIdBytes = await this.readRaw(CH_SYSTEM_ID);
       return {
         model: this.model,
         modelDisplay: this.modelDisplay,
         name: await this.getName(),
         manufacturer: decodeAscii(await this.readRaw(CH_MANUFACTURER)),
         model_number: decodeAscii(await this.readRaw(CH_MODEL_NUMBER)),
-        // 0x2A25 is on the Web Bluetooth blocklist — read will throw, readRaw -> null.
-        serial_number: decodeAscii(await this.readRaw(CH_SERIAL_NUMBER)),
+        // 0x2A25 is on the Web Bluetooth blocklist (read throws -> null); fall back
+        // to the serial derived from the System ID so this matches the desktop app.
+        serial_number:
+          decodeAscii(await this.readRaw(CH_SERIAL_NUMBER)) ||
+          serialFromSystemId(systemIdBytes),
         firmware_revision: decodeAscii(await this.readRaw(CH_FIRMWARE_REVISION)),
         software_revision: decodeAscii(await this.readRaw(CH_SOFTWARE_REVISION)),
         hardware_revision: decodeAscii(await this.readRaw(CH_HW_REVISION)),
-        system_id: decodeSystemId(await this.readRaw(CH_SYSTEM_ID)),
+        system_id: decodeSystemId(systemIdBytes),
       };
     }
 
