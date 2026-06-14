@@ -12,7 +12,7 @@ The Fives · The Sevens · The Nines (incl. McLaren) · Windows · Linux · macO
 [![release](https://img.shields.io/github/v/release/Nixer1337/KlipschRemote?label=release&sort=semver)](https://github.com/Nixer1337/KlipschRemote/releases/latest)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
-![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
+![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Web-lightgrey)
 
 </div>
 
@@ -21,7 +21,8 @@ The Fives · The Sevens · The Nines (incl. McLaren) · Windows · Linux · macO
 A desktop remote and Python library for Klipsch powered speakers. Volume, input,
 3-band EQ, mute, sound modes, transport and rename — all over the speaker's
 native BLE control protocol, with one code path for every OS. Ships as a friendly
-GUI, a CLI, and an importable async library.
+GUI, a CLI, an importable async library, and a **no-install browser app**
+([Web Bluetooth](web/README.md)).
 
 ## 📸 Screenshots
 
@@ -36,6 +37,12 @@ GUI, a CLI, and an importable async library.
 </div>
 
 ## ⬇️ Install
+
+**Web app — nothing to install** — open
+[**the hosted remote**](https://nixer1337.github.io/KlipschRemote/) in **Chrome,
+Edge or Opera** (desktop or Android) and connect over Web Bluetooth. No download,
+no Python. Firefox and iOS/Safari don't support Web Bluetooth. Details and
+self-hosting: [`web/`](web/README.md).
 
 **Windows app** — grab the installer from the
 [**latest release**](https://github.com/Nixer1337/KlipschRemote/releases/latest)
@@ -65,6 +72,14 @@ git clone https://github.com/Nixer1337/KlipschRemote.git
 python -m klipsch_remote        # desktop GUI
 python -m klipsch_ble           # CLI / interactive REPL
 python -m klipsch_ble status    # one-shot status
+```
+
+**Web version** — just open
+[the hosted page](https://nixer1337.github.io/KlipschRemote/), or serve the
+folder yourself (Web Bluetooth needs HTTPS or `localhost`):
+
+```sh
+python -m http.server 8000 --directory web    # then open http://localhost:8000
 ```
 
 Library use:
@@ -113,6 +128,7 @@ instead. CI
 |---|---|
 | [`klipsch_ble`](klipsch_ble/README.md) | Async BLE library + CLI — the engine |
 | [`klipsch_remote`](klipsch_remote/README.md) | Flet desktop GUI on top of it |
+| [`web`](web/README.md) | Browser remote over Web Bluetooth — static page, no install, [hosted on Pages](https://nixer1337.github.io/KlipschRemote/) |
 
 ## 📝 License & legal
 
