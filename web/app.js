@@ -14,6 +14,7 @@
   const $ = (id) => document.getElementById(id);
   const els = {};
   let client = null;
+  let deviceInfo = null; // cached device_info() — read once per connection
 
   // The About page fields: [Material icon, label, DeviceInfo key]. Mirrors
   // screens.py ABOUT_FIELDS so the rows + order match the desktop exactly.
@@ -81,6 +82,7 @@
       els.connectingStatus.textContent = "Reading state…";
       els.modelName.textContent = client.modelDisplay;
       await loadAll();
+      await loadDeviceInfo(); // read device info once, up front (seeds the Name row)
       showScreen("remote");
     } catch (e) {
       console.error(e);
@@ -96,12 +98,14 @@
   function onDisconnect() {
     if (client) client.disconnect();
     client = null;
+    deviceInfo = null;
     els.connectStatus.textContent = "Not connected.";
     showScreen("connect");
   }
 
   function onGattDisconnected() {
     client = null;
+    deviceInfo = null;
     els.connectStatus.textContent = "Speaker disconnected.";
     showScreen("connect");
     toast("Speaker disconnected", true);
@@ -147,6 +151,7 @@
     const info = await guard(() => client.deviceInfo(), "Couldn't read device info");
     els.aboutStatus.hidden = true;
     if (!info) return;
+    deviceInfo = info;
     els.nameValue.textContent = info.name || "—";
     els.aboutList.innerHTML = "";
     ABOUT_FIELDS.forEach(([icon, label, key], i) => {
@@ -302,7 +307,10 @@
     els.remoteRefresh.addEventListener("click", () => guard(loadAll, "Refresh failed"));
     els.openSettings.addEventListener("click", () => showScreen("settings"));
     els.settingsBack.addEventListener("click", () => showScreen("remote"));
-    els.aboutRow.addEventListener("click", () => { showScreen("about"); loadDeviceInfo(); });
+    els.aboutRow.addEventListener("click", () => {
+      showScreen("about");
+      if (!deviceInfo) loadDeviceInfo(); // already read on connect; only retry if it failed
+    });
     els.aboutBack.addEventListener("click", () => showScreen("settings"));
 
     // volume
@@ -372,8 +380,9 @@
     const trimmed = name.trim();
     if (!trimmed) return toast("Name can't be empty", true);
     await guard(() => client.setName(trimmed), "Couldn't rename");
-    els.nameValue.textContent = trimmed;
+    els.nameValue.textContent = trimmed; // optimistic
     toast("Renamed");
+    await loadDeviceInfo(); // re-parse so the Name row + About reflect the speaker
   }
 
   async function onFactoryReset() {
