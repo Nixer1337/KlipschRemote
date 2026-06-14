@@ -142,6 +142,7 @@ class DeviceInfo:
     manufacturer: Optional[str]   # DIS 0x2A29
     model_number: Optional[str]   # DIS 0x2A24
     serial_number: Optional[str]  # DIS 0x2A25
+    mac_address: Optional[str]    # serial (= BD_ADDR) rendered as a colon MAC
     firmware_revision: Optional[str]  # DIS 0x2A26
     software_revision: Optional[str]  # DIS 0x2A28
     hardware_revision: Optional[str]  # DIS 0x2A27
@@ -433,12 +434,14 @@ class KlipschClient:
 
     async def device_info(self) -> DeviceInfo:
         """Read the standard Device Information characteristics in one call."""
+        serial = await self.get_serial_number()
         return DeviceInfo(
             model=self.model.value,
             name=await self.get_name(),
             manufacturer=_decode_ascii(await self.read_raw(CH_MANUFACTURER)),
             model_number=_decode_ascii(await self.read_raw(CH_MODEL_NUMBER)),
-            serial_number=await self.get_serial_number(),
+            serial_number=serial,
+            mac_address=_serial_to_mac(serial),
             firmware_revision=await self.get_firmware_revision(),
             software_revision=_decode_ascii(await self.read_raw(CH_SOFTWARE_REVISION)),
             hardware_revision=_decode_ascii(await self.read_raw(CH_HW_REVISION)),
@@ -517,3 +520,15 @@ def _decode_system_id(data: bytes | None) -> str | None:
     if not data:
         return None
     return ":".join(f"{b:02X}" for b in data)
+
+
+def _serial_to_mac(serial: str | None) -> str | None:
+    """The unit's serial number is its Bluetooth MAC; render it colon-separated
+    (e.g. ``54B7E58D8F0B`` -> ``54:B7:E5:8D:8F:0B``), or ``None`` if it isn't a
+    12 hex-digit address."""
+    if not serial:
+        return None
+    s = serial.strip()
+    if len(s) != 12 or any(c not in "0123456789abcdefABCDEF" for c in s):
+        return None
+    return ":".join(s[i:i + 2] for i in range(0, 12, 2)).upper()

@@ -17,7 +17,9 @@
   let deviceInfo = null; // cached device_info() — read once per connection
 
   // The About page fields: [Material icon, label, DeviceInfo key]. Mirrors
-  // screens.py ABOUT_FIELDS so the rows + order match the desktop exactly.
+  // screens.py ABOUT_FIELDS, minus Serial number: 0x2A25 is on the Web Bluetooth
+  // blocklist and the serial (the BD_ADDR) is unreachable from a browser, so the
+  // row would only ever show a dash. Desktop keeps it.
   const ABOUT_FIELDS = [
     ["speaker", "Name", "name"],
     ["category", "Model", "modelDisplay"],
@@ -26,7 +28,6 @@
     ["terminal", "MCU Firmware Version", "software_revision"],
     ["developer_board", "Hardware", "hardware_revision"],
     ["numbers", "Model number", "model_number"],
-    ["qr_code_2", "Serial number", "serial_number"],
     ["fingerprint", "System ID", "system_id"],
   ];
 
@@ -157,18 +158,12 @@
     ABOUT_FIELDS.forEach(([icon, label, key], i) => {
       if (i) els.aboutList.append(hairline());
       const value = info[key];
-      // 0x2A25 is on the Web Bluetooth blocklist, so the serial is normally
-      // derived from the System ID. If even that fails, explain the dash on hover.
-      const blocked = key === "serial_number" && !value;
-      const title = blocked
-        ? ' title="Web Bluetooth blocks reading the serial number, and it couldn\'t be derived — use the desktop app"'
-        : "";
       const row = document.createElement("div");
       row.className = "list-item";
       row.innerHTML =
         `<span class="mi">${icon}</span>` +
         `<div class="list-text"><div class="list-label">${label}</div></div>` +
-        `<span class="trailing"${title}>${value ? esc(value) : "—"}</span>`;
+        `<span class="trailing">${value ? esc(value) : "—"}</span>`;
       els.aboutList.append(row);
     });
   }

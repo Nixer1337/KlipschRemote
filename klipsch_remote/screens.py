@@ -40,6 +40,7 @@ ABOUT_FIELDS: list[tuple[str, str, str]] = [
     (ft.Icons.DEVELOPER_BOARD, "Hardware", "hardware_revision"),
     (ft.Icons.NUMBERS, "Model number", "model_number"),
     (ft.Icons.QR_CODE_2, "Serial number", "serial_number"),
+    (ft.Icons.LAN, "MAC Address", "mac_address"),
     (ft.Icons.FINGERPRINT, "System ID", "system_id"),
 ]
 
