@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must keep LF endings or the shebang breaks when run on Linux
+# (they're authored on Windows, where autocrlf would otherwise rewrite them).
+*.sh text eol=lf

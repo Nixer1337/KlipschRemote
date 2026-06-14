@@ -1,0 +1,43 @@
+# Pinned dependency lock for Klipsch Remote.
+#
+# Install with:
+#   python -m pip install -r requirements.txt
+#
+# Versions are frozen so a fresh machine reproduces the exact known-good
+# build/run environment. The Windows-only winrt-* packages (the WinRT GATT
+# backend in klipsch_ble/winrt_backend.py) carry a sys_platform marker, so this
+# file also installs cleanly on Linux/macOS for development.
+
+# --- Direct ---
+flet==0.85.3
+flet-cli==0.85.3
+flet-desktop==0.85.3
+bleak==3.0.2
+
+# --- System-tray icon (Windows: close-to-tray, right-click Quit) ---
+pystray==0.19.5 ; sys_platform == "win32"
+pillow==11.3.0 ; sys_platform == "win32"
+
+# --- WinRT fast-path GATT backend (Windows only) ---
+winrt-runtime==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Devices.Bluetooth==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Devices.Bluetooth.Advertisement==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Devices.Bluetooth.GenericAttributeProfile==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Devices.Enumeration==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Devices.Radios==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Foundation==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Foundation.Collections==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Storage.Streams==3.2.1 ; sys_platform == "win32"
+
+# --- Transitive (pinned for reproducibility) ---
+anyio==4.13.0
+certifi==2026.5.20
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+msgpack==1.2.0
+oauthlib==3.3.1
+repath==0.9.0
+six==1.17.0
+typing_extensions==4.15.0

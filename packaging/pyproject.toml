@@ -1,0 +1,41 @@
+[project]
+name = "klipsch-remote"
+version = "0.1.0"
+description = "Unofficial desktop remote for Klipsch powered speakers"
+requires-python = ">=3.9"
+# Pinned so `flet build` bundles a reproducible set of versions. Mirrors the
+# direct deps in the repo-root requirements.txt (the full lock incl. transitives).
+dependencies = [
+    "flet==0.85.3",
+    "bleak==3.0.2",
+    # WinRT fast-path GATT backend - imported directly by
+    # klipsch_ble/winrt_backend.py (Windows only; the marker keeps macOS/Linux
+    # builds from trying to install Windows-only wheels).
+    "winrt-runtime==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Devices.Bluetooth==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Devices.Bluetooth.Advertisement==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Devices.Bluetooth.GenericAttributeProfile==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Devices.Enumeration==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Devices.Radios==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Foundation==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections==3.2.1 ; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams==3.2.1 ; sys_platform == 'win32'",
+    # System-tray icon (Windows close-to-tray + right-click Quit) - imported by
+    # klipsch_remote/app.py behind a try/except, Windows-only via the marker.
+    "pystray==0.19.5 ; sys_platform == 'win32'",
+    "pillow==11.3.0 ; sys_platform == 'win32'",
+]
+
+# Native packaging metadata. `flet build` compiles a real Flutter app whose
+# executable IS this program (not the shared flet.exe), so the window/taskbar
+# icon is baked in at build time and the app gets a stable Windows identity —
+# which is what makes "Pin to taskbar" work. The build script also passes
+# --artifact / --product on the CLI; those win over these defaults.
+[tool.flet]
+org = "com.unofficial"
+product = "Klipsch Remote"
+company = "Unofficial"
+copyright = "Unofficial. Not affiliated with or endorsed by Klipsch."
+
+[tool.flet.app]
+path = "src"

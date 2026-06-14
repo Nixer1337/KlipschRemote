@@ -1,0 +1,78 @@
+name: Build Windows installer
+
+# Builds the native KlipschRemote bundle with `flet build` and wraps it in the
+# Inno Setup installer. Manual-only: produces the installer as a downloadable
+# artifact for testing. Tag-driven releases are handled by release.yml (which
+# builds Windows + Linux together and publishes one combined Release).
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Flutter creates plugin symlinks during `flet build`. Runners are elevated
+      # so this usually works, but enabling Developer Mode + git symlinks makes it
+      # deterministic regardless of the plugin set.
+      - name: Enable Developer Mode and git symlinks
+        shell: pwsh
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" `
+            /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+          git config --global core.symlinks true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # `flet build` downloads and manages its own pinned Flutter SDK under
+      # %USERPROFILE%\flutter; cache it (and the pub cache) so reruns skip the
+      # multi-minute first-time download/compile. Keyed on the flet version
+      # declared in pyproject.toml so a flet bump invalidates the cache.
+      - name: Cache Flutter SDK and pub cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/flutter
+            ~/AppData/Local/Pub/Cache
+          key: flet-flutter-${{ runner.os }}-${{ hashFiles('packaging/pyproject.toml') }}
+          restore-keys: |
+            flet-flutter-${{ runner.os }}-
+
+      - name: Install pinned dependencies (flet CLI + app deps)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      # Stages a clean project, runs `flet build windows`, patches the runner
+      # (hidden/centred/sized window) + lib/main.dart (hide_window_on_start), then
+      # recompiles and collects the bundle into dist_app\.
+      - name: Build native bundle (flet build)
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File build_app.ps1
+
+      # Inno Setup is preinstalled on windows-latest; fall back to Chocolatey if a
+      # future image drops it.
+      - name: Compile installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KlipschRemote-Setup
+          path: dist_installer/KlipschRemote-Setup.exe
+          if-no-files-found: error

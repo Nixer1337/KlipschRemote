@@ -1,0 +1,32 @@
+KlipschRemote
+Copyright 2026 Nixer1337
+
+This product includes software developed by Nixer1337.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+--------------------------------------------------------------------------------
+Attribution
+--------------------------------------------------------------------------------
+
+Portions of the BLE control protocol (input map, master-volume range, and the
+percent conversion math) are aligned with the hardware-confirmed Linux
+"fives-api" project by ssalaues (MIT-licensed):
+
+    https://github.com/ssalaues/fives-api
+
+The remaining protocol details (EQ, mute, sound modes, transport, rename, model
+detection via the Device Information Service) were independently reverse
+engineered for interoperability from the official "Klipsch Connect"
+(com.klipsch.connect) application.
+
+--------------------------------------------------------------------------------
+Trademarks
+--------------------------------------------------------------------------------
+
+"Klipsch", "The Fives", "The Sevens", "The Nines", "McLaren", and related names
+and logos are trademarks of their respective owners. This project is an
+unofficial, independent work and is not affiliated with, authorized by, endorsed
+by, or sponsored by Klipsch Group, Inc. or any of its affiliates. These names
+are used only to describe interoperability, as permitted by Section 6 of the
+Apache License, Version 2.0.
