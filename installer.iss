@@ -36,8 +36,8 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 ; The setup .exe's own icon (ship our OWN art, not Klipsch's trademarked icon).
 SetupIconFile=klipsch_remote\assets\icon.ico
 WizardStyle=modern
-Compression=lzma2/max
-SolidCompression=yes
+Compression=zip
+SolidCompression=no
 OutputDir=dist_installer
 OutputBaseFilename=KlipschRemote-Setup
 
