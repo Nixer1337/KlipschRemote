@@ -4,3 +4,7 @@
 # Shell scripts must keep LF endings or the shebang breaks when run on Linux
 # (they're authored on Windows, where autocrlf would otherwise rewrite them).
 *.sh text eol=lf
+
+# Batch files must keep CRLF endings so cmd.exe parses them reliably.
+*.bat text eol=crlf
+*.cmd text eol=crlf

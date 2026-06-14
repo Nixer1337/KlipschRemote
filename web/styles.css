@@ -139,6 +139,13 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .subtitle { margin: 12px 0 0; }
 .divider { height: 1px; border: 0; background: var(--outline-variant); margin: 16px 0; }
 .note { line-height: 1.55; }
+.repo-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 14px; font-size: 13px;
+  color: var(--muted); text-decoration: none; transition: color 0.15s;
+}
+.repo-link .mi { font-size: 16px; }
+.repo-link:hover { color: var(--text); }
 .connect-actions { margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; }
 .status-line { text-align: left; }
 

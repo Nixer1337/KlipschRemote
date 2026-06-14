@@ -9,6 +9,9 @@ It's a faithful port of [`klipsch_ble`](../klipsch_ble): volume, mute, input,
 3-band EQ + presets, sound modes, subwoofer, transport, rename, auto-standby,
 function sounds, factory reset and read-only device info.
 
+**Live at [klipsch.io](https://klipsch.io/)** — just open it in Chrome / Edge /
+Opera. The rest of this page is for running or self-hosting it yourself.
+
 ## Run it
 
 It must be served from a **secure context** (Web Bluetooth requires HTTPS or

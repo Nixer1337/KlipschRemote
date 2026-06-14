@@ -39,7 +39,7 @@ GUI, a CLI, an importable async library, and a **no-install browser app**
 ## ⬇️ Install
 
 **Web app — nothing to install** — open
-[**the hosted remote**](https://nixer1337.github.io/KlipschRemote/) in **Chrome,
+[**klipsch.io**](https://klipsch.io/) in **Chrome,
 Edge or Opera** (desktop or Android) and connect over Web Bluetooth. No download,
 no Python. Firefox and iOS/Safari don't support Web Bluetooth. Details and
 self-hosting: [`web/`](web/README.md).
@@ -75,7 +75,7 @@ python -m klipsch_ble status    # one-shot status
 ```
 
 **Web version** — just open
-[the hosted page](https://nixer1337.github.io/KlipschRemote/), or serve the
+[**klipsch.io**](https://klipsch.io/), or serve the
 folder yourself (Web Bluetooth needs HTTPS or `localhost`):
 
 ```sh
@@ -128,7 +128,7 @@ instead. CI
 |---|---|
 | [`klipsch_ble`](klipsch_ble/README.md) | Async BLE library + CLI — the engine |
 | [`klipsch_remote`](klipsch_remote/README.md) | Flet desktop GUI on top of it |
-| [`web`](web/README.md) | Browser remote over Web Bluetooth — static page, no install, [hosted on Pages](https://nixer1337.github.io/KlipschRemote/) |
+| [`web`](web/README.md) | Browser remote over Web Bluetooth — static page, no install, live at [klipsch.io](https://klipsch.io/) |
 
 ## 📝 License & legal
 

@@ -157,12 +157,18 @@
     ABOUT_FIELDS.forEach(([icon, label, key], i) => {
       if (i) els.aboutList.append(hairline());
       const value = info[key];
+      // The serial number (0x2A25) is on the Web Bluetooth blocklist and can't be
+      // read from a page; explain the dash on hover instead of leaving it cryptic.
+      const blocked = key === "serial_number" && !value;
+      const title = blocked
+        ? ' title="Web Bluetooth blocks reading the serial number — use the desktop app"'
+        : "";
       const row = document.createElement("div");
       row.className = "list-item";
       row.innerHTML =
         `<span class="mi">${icon}</span>` +
         `<div class="list-text"><div class="list-label">${label}</div></div>` +
-        `<span class="trailing">${value ? esc(value) : "—"}</span>`;
+        `<span class="trailing"${title}>${value ? esc(value) : "—"}</span>`;
       els.aboutList.append(row);
     });
   }
