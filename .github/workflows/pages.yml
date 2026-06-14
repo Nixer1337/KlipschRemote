@@ -1,0 +1,41 @@
+name: pages
+
+# Publishes the static Web Bluetooth remote in web/ to GitHub Pages.
+# Pages serves over HTTPS, which Web Bluetooth requires. The app uses only
+# relative asset paths, so it works under the project subpath
+# (https://<user>.github.io/KlipschRemote/) and under a custom domain alike.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# Permissions the deploy-pages action needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; newer pushes supersede in-flight ones.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true     # turn Pages on automatically on the first run
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web            # publish only the web/ folder
+      - id: deployment
+        uses: actions/deploy-pages@v4
