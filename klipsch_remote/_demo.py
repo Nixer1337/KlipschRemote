@@ -69,7 +69,7 @@ def _store() -> dict[str, bytes]:
         # standard Device Information Service (About page)
         c.CH_MANUFACTURER: b"Klipsch Group, Inc.\x00",
         c.CH_MODEL_NUMBER: b"1067563",
-        c.CH_SERIAL_NUMBER: b"KS-2417-008842\x00",
+        c.CH_SERIAL_NUMBER: b"3FA91C7E42D8\x00",  # = DEMO_DISPLAY_ADDRESS; serial *is* the BD_ADDR
         c.CH_FIRMWARE_REVISION: b"1.6.9",
         c.CH_SOFTWARE_REVISION: b"7.0.3",
         c.CH_HW_REVISION: b"02.00.01",
