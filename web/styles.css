@@ -142,12 +142,22 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .divider { height: 1px; border: 0; background: var(--outline-variant); margin: 16px 0; }
 .note { line-height: 1.55; }
 .repo-link {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-block; white-space: nowrap;
   margin-top: 14px; font-size: 13px;
   color: var(--muted); text-decoration: none; transition: color 0.15s;
 }
-.repo-link .mi { font-size: 16px; }
+/* Leading icon: `vertical-align: middle` centres the glyph on the text's middle
+   line — the standard Material way to align an icon with its label, no pixel
+   nudging. The margin (not a flex gap) sets the icon↔label spacing. */
+.repo-link .mi { font-size: 16px; vertical-align: middle; margin-right: 6px; }
 .repo-link:hover { color: var(--text); }
+/* GitHub link + the (optional) PWA install link sit together, subtly, on one row. */
+.connect-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 14px; }
+.connect-links .repo-link { margin-top: 0; }
+/* Make the install <button> read as a plain text link, not a pill button. Reset
+   the button's family/weight but NOT its size — the .repo-link rule sets 13px, and
+   the `font:` shorthand would clobber that back up to the inherited 15px. */
+.link-btn { background: none; border: 0; padding: 0; font-family: inherit; font-weight: inherit; line-height: inherit; cursor: pointer; }
 .connect-actions { margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; }
 .status-line { text-align: left; }
 

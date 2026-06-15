@@ -9,9 +9,10 @@
   <link rel="canonical" href="https://klipsch.io/" />
   <meta name="robots" content="index, follow" />
 
-  <!-- Icons -->
+  <!-- Icons + PWA -->
   <link rel="icon" href="icon.png" />
-  <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
 
   <!-- Open Graph (Telegram, Discord, Facebook, …) -->
   <meta property="og:type" content="website" />
@@ -59,9 +60,15 @@
           first. Then press <b>Connect</b> and choose it from the browser's
           device chooser.
         </div>
-        <a class="repo-link" href="https://github.com/Nixer1337/KlipschRemote" target="_blank" rel="noopener">
-          <span class="mi">code</span> Open source on GitHub
-        </a>
+        <div class="connect-links">
+          <a class="repo-link" href="https://github.com/Nixer1337/KlipschRemote" target="_blank" rel="noopener">
+            <span class="mi">code</span>Open source on GitHub
+          </a>
+          <!-- Shown only when the browser offers PWA install (beforeinstallprompt). -->
+          <button id="install-btn" class="repo-link link-btn" hidden>
+            <span class="mi">download</span>Install PWA app
+          </button>
+        </div>
       </div>
       <div class="connect-actions">
         <div id="connect-error" class="banner banner-error inline" hidden></div>
@@ -317,5 +324,39 @@
 
   <script src="klipsch.js"></script>
   <script src="app.js"></script>
+
+  <!-- PWA: register the service worker and wire the "Install app" button. Kept
+       inline and self-contained so it's independent of the app's BLE logic. -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch((e) =>
+          console.warn("SW registration failed:", e)
+        );
+      });
+    }
+    (function () {
+      const btn = document.getElementById("install-btn");
+      let deferred = null;
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();      // suppress the mini-infobar; use our own button
+        deferred = e;
+        if (btn) btn.hidden = false;
+      });
+      if (btn) {
+        btn.addEventListener("click", async () => {
+          if (!deferred) return;
+          btn.hidden = true;
+          deferred.prompt();
+          await deferred.userChoice;
+          deferred = null;
+        });
+      }
+      window.addEventListener("appinstalled", () => {
+        deferred = null;
+        if (btn) btn.hidden = true;
+      });
+    })();
+  </script>
 </body>
 </html>

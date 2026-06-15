@@ -26,6 +26,21 @@ python -m http.server 8000 --directory web
 Or host the `web/` folder anywhere static + HTTPS (GitHub Pages, Netlify, …) and
 open the URL.
 
+## Install as an app (PWA)
+
+The page is a **Progressive Web App**: a service worker (`sw.js`) precaches the
+shell (HTML/JS/CSS/icons) and runtime-caches the Google Fonts, so after the first
+visit it launches instantly and works offline (the BLE control needs no network
+anyway). On a supporting browser the Connect screen shows an **Install app**
+button (and the address bar offers an install icon) — install it and it runs in
+its own window from the launcher / Start menu / home screen, like a native app.
+`manifest.json` defines the name, icons and standalone display.
+
+> **Maintainer note:** the cache is keyed by `VERSION` in `sw.js`. **Bump it**
+> whenever you change any shelled file (`index.html`, `app.js`, `klipsch.js`,
+> `styles.css`, an icon, or the `SHELL` list) so installed clients pick up the
+> new assets instead of the stale cached ones.
+
 ## Browser & platform support
 
 | Works | Doesn't work |
@@ -59,8 +74,9 @@ without re-picking.
 - A speaker that is connected as audio but not advertising BLE may not appear in
   the chooser on some OSes; wake it / start playback and retry.
 - **Icons/fonts load from Google Fonts** (Material Symbols + Roboto) over the
-  network, so glyphs render as their text names until the font loads, and won't
-  appear fully offline. The BLE control itself needs no network.
+  network, so on the very first visit glyphs render as their text names until the
+  font loads. The service worker caches them afterwards, so subsequent (and
+  offline) launches render fully. The BLE control itself needs no network.
 
 ## Look & feel
 
@@ -78,6 +94,9 @@ settings rows.
 | `index.html` | Markup (connect / remote / settings / about screens). |
 | `styles.css` | Google "dark neutral" theme + Material widgets, matching `klipsch_remote/theme.py` / `screens.py`. |
 | `icon.png` | App icon (copy of `klipsch_remote/assets/icon.png`) so `web/` deploys standalone. |
+| `manifest.json` | PWA manifest — name, icons, standalone display. |
+| `sw.js` | Service worker — precaches the shell + runtime-caches fonts for offline / install. |
+| `icon-192.png` / `icon-512.png` / `maskable-512.png` | PWA install icons (generated from `icon.png`; maskable has safe-zone padding). |
 
 ## Keeping in sync with the Python protocol
 
