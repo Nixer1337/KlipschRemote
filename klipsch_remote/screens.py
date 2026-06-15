@@ -45,20 +45,6 @@ ABOUT_FIELDS: list[tuple[str, str, str]] = [
 ]
 
 
-def _hint_tooltip(message: str) -> ft.Tooltip:
-    """A Material-styled rich tooltip: a rounded secondary-container chip with
-    readable on-container text and comfortable padding, instead of the default
-    terse dark mini-tooltip. Used for the inline help affordances in Settings."""
-    return ft.Tooltip(
-        message=message,
-        decoration=ft.BoxDecoration(
-            bgcolor=ft.Colors.SECONDARY_CONTAINER,
-            border_radius=ft.BorderRadius.all(10)),
-        text_style=ft.TextStyle(size=12, color=ft.Colors.ON_SECONDARY_CONTAINER),
-        padding=ft.Padding.symmetric(vertical=10, horizontal=14),
-        margin=12, wait_duration=200, prefer_below=True)
-
-
 def connect_controls(r: KlipschRemote) -> list[ft.Control]:
     """The connect screen: a top form (paired picker + address) and a fixed
     bottom action bar (Scan · Connect)."""
@@ -372,21 +358,9 @@ def settings_controls(r: KlipschRemote) -> list[ft.Control]:
         padding=ft.Padding.only(left=16, top=16, bottom=4))
     # Speaker Placement: boundary-gain bass compensation. A Material 3 segmented
     # button (Corner / Wall / Open) with a per-option hover hint and a live
-    # description line; the info chip beside the title explains what "boundary
-    # gain" is. Maps to CH_BOUNDARY_GAIN — see klipsch_ble.constants.Placement.
-    placement_section_header = ft.Container(
-        ft.Row([ft.Text("Speaker Placement", weight=ft.FontWeight.BOLD, size=14,
-                        color=ft.Colors.ON_SURFACE_VARIANT, expand=True),
-                ft.Container(
-                    ft.Icon(ft.Icons.HELP_OUTLINE, size=18,
-                            color=ft.Colors.ON_SURFACE_VARIANT),
-                    tooltip=_hint_tooltip(
-                        "Speakers near a wall or in a corner get extra bass from "
-                        "the room. This sets how much bass the speaker adds back, "
-                        "so it stays balanced wherever it sits."),
-                    padding=ft.Padding.all(4))],
-               vertical_alignment=ft.CrossAxisAlignment.CENTER),
-        padding=ft.Padding.only(left=16, top=16, bottom=4))
+    # description line under it. Maps to CH_BOUNDARY_GAIN — see
+    # klipsch_ble.constants.Placement.
+    placement_section_header = section("Speaker Placement")
     placement_card = ft.Card(
         ft.Container(
             ft.Column(
@@ -425,16 +399,24 @@ def settings_controls(r: KlipschRemote) -> list[ft.Control]:
                    desc="View the project on GitHub.",
                    on_click=r._on_open_repo)
     about_app = grouped(repo_row)
-    # Disconnect — the deliberate way to drop the BLE link. A full-width filled
-    # button in the error colour at the very foot of Settings, mirroring the
-    # connect screen's primary button. (The remote no longer carries a top-bar
-    # back-arrow for this; it was too easy to hit when reaching for "back".)
+    # Disconnect — the deliberate way to drop the BLE link, but a reversible one,
+    # so it's a quiet outlined button at the very foot of Settings rather than a
+    # filled error banner: a hairline outline and muted label at rest, with the
+    # error colour surfacing only on hover so the intent still reads. (The remote
+    # no longer carries a top-bar back-arrow for this; it was too easy to hit when
+    # reaching for "back".)
     disconnect_btn = ft.Container(
-        ft.Row([ft.FilledButton(
+        ft.Row([ft.OutlinedButton(
             "Disconnect", icon=ft.Icons.LINK_OFF, on_click=r._on_disconnect,
             expand=True, height=46,
-            style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR,
-                                 color=ft.Colors.ON_ERROR))]),
+            style=ft.ButtonStyle(
+                color={ft.ControlState.DEFAULT: ft.Colors.ON_SURFACE_VARIANT,
+                       ft.ControlState.HOVERED: ft.Colors.ERROR},
+                side={ft.ControlState.DEFAULT:
+                          ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                      ft.ControlState.HOVERED:
+                          ft.BorderSide(1, ft.Colors.ERROR)},
+                overlay_color=ft.Colors.with_opacity(0.08, ft.Colors.ERROR)))]),
         padding=ft.Padding.only(top=12))
 
     header = ft.Row(

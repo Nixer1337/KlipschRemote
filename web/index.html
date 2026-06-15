@@ -213,15 +213,7 @@
           </label>
         </div>
 
-        <div class="section-label">Speaker Placement
-          <span class="help" id="placement-help" tabindex="0" role="button"
-                aria-label="What is speaker placement?">
-            <span class="mi">help</span>
-            <span class="tip" role="tooltip">Speakers near a wall or in a corner get
-              extra bass from the room. This sets how much bass the speaker adds back,
-              so it stays balanced wherever it sits.</span>
-          </span>
-        </div>
+        <div class="section-label">Speaker Placement</div>
         <div class="group">
           <div class="placement">
             <div class="segmented" id="placement-seg" role="group" aria-label="Speaker placement">
@@ -285,9 +277,10 @@
           </a>
         </div>
 
-        <!-- Disconnect — the deliberate way to drop the BLE link, a full-width
-             red button at the foot of Settings (mirrors the connect button). -->
-        <button id="settings-disconnect" class="btn btn-danger btn-block disconnect-btn">
+        <!-- Disconnect — the deliberate way to drop the BLE link, but a
+             reversible one, so it's a quiet outlined button at the foot of
+             Settings rather than a filled error banner (see .disconnect-btn). -->
+        <button id="settings-disconnect" class="btn btn-block disconnect-btn">
           <span class="mi">link_off</span> Disconnect
         </button>
         <div class="scroll-foot"></div>
