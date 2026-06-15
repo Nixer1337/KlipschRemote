@@ -167,11 +167,27 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
   gap: 24px; min-height: 100dvh; text-align: center;
 }
 .spinner {
-  width: 48px; height: 48px; border-radius: 50%;
-  border: 4px solid var(--outline-variant); border-top-color: var(--primary);
-  animation: spin 0.9s linear infinite;
+  /* A faithful Material indeterminate CircularProgressIndicator — same as the
+     desktop ft.ProgressRing (48px, 4px stroke, no track). Two un-synced
+     animations: a constant rotation plus a stroke-dash sweep that grows the arc
+     toward ~270° and shrinks it back. That interplay is the signature Material
+     motion. A stroked path has no sharp radial edges, so nothing flickers. */
+  width: 48px; height: 48px;
+  animation: spinner-rotate 2s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-arc {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+  animation: spinner-dash 1.5s ease-in-out infinite;
+}
+@keyframes spinner-rotate { 100% { transform: rotate(360deg); } }
+@keyframes spinner-dash {
+  0%   { stroke-dasharray: 1, 150;  stroke-dashoffset: 0; }
+  50%  { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+}
 .connecting-text h2 { font-size: 20px; margin-bottom: 6px; }
 
 /* Volume / sub rows --------------------------------------------------------- */
