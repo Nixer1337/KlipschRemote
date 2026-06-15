@@ -79,6 +79,17 @@ settings rows.
 | `styles.css` | Google "dark neutral" theme + Material widgets, matching `klipsch_remote/theme.py` / `screens.py`. |
 | `icon.png` | App icon (copy of `klipsch_remote/assets/icon.png`) so `web/` deploys standalone. |
 
+## Keeping in sync with the Python protocol
+
+`klipsch.js` is a hand-maintained mirror of [`klipsch_ble/constants.py`](../klipsch_ble/constants.py)
+and [`models.py`](../klipsch_ble/models.py) — there is no build step linking them.
+[`tests/test_web_parity.py`](../tests/test_web_parity.py) guards against drift: it
+parses the GATT UUIDs, characteristic→service map, numeric constants, inputs and
+model tables straight out of this file and asserts they equal the Python source
+of truth (it runs in the normal `pytest` CI, no Node needed). If you change a
+UUID, add an input/model, or touch a conversion here, run `pytest` — a mismatch
+fails the build until both sides agree.
+
 ## License
 
 Same as the parent project — [Apache 2.0](../LICENSE). Unofficial; not affiliated
