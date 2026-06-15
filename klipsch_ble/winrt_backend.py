@@ -44,7 +44,7 @@ class WinRTBleakLikeClient:
         self._chars: dict[str, object] = {}
 
     # --- BleakLike ---
-    async def connect(self) -> "WinRTBleakLikeClient":
+    async def connect(self) -> WinRTBleakLikeClient:
         from winrt.windows.devices.bluetooth import BluetoothLEDevice
 
         device = await BluetoothLEDevice.from_bluetooth_address_async(

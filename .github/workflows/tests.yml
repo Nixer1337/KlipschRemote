@@ -22,3 +22,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install pytest
       - run: python -m pytest
+
+  # Static checks: ruff (lint) + mypy (types on the core library). Config lives
+  # in pyproject.toml. Kept dependency-light like the test job — mypy treats the
+  # unstubbed deps (bleak/flet/winrt) as Any via ignore_missing_imports, and the
+  # Windows-only ctypes/WinRT glue is excluded there.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.15.17 mypy==2.1.0
+      - run: ruff check klipsch_ble klipsch_remote tests
+      - run: mypy klipsch_ble

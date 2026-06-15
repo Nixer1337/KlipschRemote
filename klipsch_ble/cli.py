@@ -38,11 +38,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import (
+    MAX_VOLUME_RAW,
     Input,
     KlipschAccessError,
     KlipschClient,
     KlipschNotFoundError,
-    MAX_VOLUME_RAW,
     discover,
     find_address,
     input_name,
@@ -160,7 +160,7 @@ if IS_WINDOWS:
             pass
         return False
 else:
-    def bt_is_audio_connected(address):  # noqa: ARG001 - no cheap equivalent off Windows
+    def bt_is_audio_connected(address):  # no cheap equivalent off Windows
         return False
 
 
@@ -315,7 +315,7 @@ def _choose_paired(candidates, default_address):
         try:
             raw = input(prompt).strip()
         except (EOFError, KeyboardInterrupt):
-            raise SystemExit("\nNo selection made.")
+            raise SystemExit("\nNo selection made.") from None
         if not raw:
             return candidates[default_idx - 1].address
         if raw.isdigit() and 1 <= int(raw) <= len(candidates):
@@ -436,7 +436,7 @@ async def interactive(f: KlipschClient):
             handled = await handle_command(f, low)
             if handled is None:
                 print("didn't get that; '?' for help")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"error: {type(e).__name__}: {e}")
     print("bye!")
 
@@ -609,9 +609,9 @@ async def amain(args):
         raise SystemExit(
             "No control access: characteristics are encrypted but there is no\n"
             "working bond. The speaker must be added to the OS as an AUDIO device\n"
-            "(not as an 'Other'/LE device). Do NOT unpair.")
+            "(not as an 'Other'/LE device). Do NOT unpair.") from None
     except KlipschNotFoundError as e:
-        raise SystemExit(str(e))
+        raise SystemExit(str(e)) from None
     save_address(addr)
     print("Connected (control only).", file=sys.stderr)
     try:

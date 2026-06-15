@@ -53,8 +53,8 @@ class VSlider:
     def _travel(self) -> float:
         return self.height - self.THUMB
 
-    def set_value(self, value: int, *, update: bool = True) -> None:
-        self.value = max(self.lo, min(self.hi, int(round(value))))
+    def set_value(self, value: float, *, update: bool = True) -> None:
+        self.value = max(self.lo, min(self.hi, round(value)))
         f = (self.value - self.lo) / (self.hi - self.lo)
         self._thumb.top = (1 - f) * self._travel
         self._fill.height = self.height - self._thumb.top - self.THUMB / 2

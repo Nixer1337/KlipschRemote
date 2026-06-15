@@ -93,7 +93,7 @@ class SingleInstance:
             if fire and self._on_raise is not None:
                 try:
                     self._on_raise()
-                except Exception:  # noqa: BLE001 - never kill the listener
+                except Exception:  # never kill the listener
                     pass
 
 
@@ -105,7 +105,7 @@ async def bring_to_front(page: ft.Page) -> None:
     page.update()
     try:
         await w.to_front()
-    except Exception:  # noqa: BLE001 - best-effort across platforms
+    except Exception:  # best-effort across platforms
         pass
     w.focused = True
     # Briefly pin on top to force the OS to actually raise + focus the window,

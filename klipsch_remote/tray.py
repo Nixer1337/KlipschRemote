@@ -37,12 +37,12 @@ def _shell_tray_ready() -> bool:
     """True once the shell's notification area (Shell_TrayWnd) exists."""
     try:
         return bool(ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None))
-    except Exception:  # noqa: BLE001 - treat any probe failure as "not ready"
+    except Exception:  # treat any probe failure as "not ready"
         return False
 
 
 def start_tray(*, icon_path: str | None, on_show, on_quit,
-               on_ready=None, on_fail=None) -> "pystray.Icon | None":
+               on_ready=None, on_fail=None) -> pystray.Icon | None:
     """Create the system-tray icon (Windows close-to-tray + right-click Quit).
 
     Returns the running ``pystray.Icon`` (its event loop runs on a daemon
@@ -92,7 +92,7 @@ def start_tray(*, icon_path: str | None, on_show, on_quit,
         if ready:
             try:
                 ic.visible = True
-            except Exception:  # noqa: BLE001 - leave visible False -> on_fail
+            except Exception:  # leave visible False -> on_fail
                 pass
         if ic.visible:
             if on_ready:
@@ -103,7 +103,7 @@ def start_tray(*, icon_path: str | None, on_show, on_quit,
     def _run() -> None:
         try:
             icon.run(setup=_setup)
-        except Exception:  # noqa: BLE001 - whole tray loop failed to start
+        except Exception:  # whole tray loop failed to start
             if on_fail:
                 on_fail()
     threading.Thread(target=_run, daemon=True).start()

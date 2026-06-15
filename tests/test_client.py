@@ -31,7 +31,7 @@ class FakeBleak:
         self.connected = False
         self.writes: list[tuple[str, bytes]] = []
 
-    async def connect(self) -> "FakeBleak":
+    async def connect(self) -> FakeBleak:
         self.connected = True
         return self
 

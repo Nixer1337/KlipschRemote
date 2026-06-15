@@ -63,7 +63,7 @@ def _store() -> dict[str, bytes]:
         c.CH_INPUT: bytes([c.Input.OPTICAL.value]),
         # UI service
         c.CH_POWERMODE: bytes([1]),                      # auto-standby on
-        c.CH_NAME: "The Fives".encode("utf-8"),
+        c.CH_NAME: b"The Fives",
         # standard Device Information Service (About page)
         c.CH_MANUFACTURER: b"Klipsch Group, Inc.\x00",
         c.CH_MODEL_NUMBER: b"1067563",
@@ -87,7 +87,7 @@ class DemoTransport:
         self.store = _store()
         self.connected = False
 
-    async def connect(self) -> "DemoTransport":
+    async def connect(self) -> DemoTransport:
         self.connected = True
         return self
 

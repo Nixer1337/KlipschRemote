@@ -28,6 +28,31 @@ import webbrowser
 
 import flet as ft
 
+from klipsch_ble import (
+    KlipschAccessError,
+    KlipschClient,
+    KlipschNotFoundError,
+    discover,
+)
+from klipsch_ble.cli import (
+    list_paired_bluetooth,
+    load_config,
+    load_saved_address,
+    save_address,
+    save_config,
+)
+from klipsch_ble.constants import (
+    CH_DYNBASS,
+    CH_NIGHT,
+    CH_POWERMODE,
+    CH_SUBINVERT,
+    EQ_MAX,
+    EQ_MIN,
+    MAX_VOLUME_RAW,
+    SUB_DB_MAX,
+    SUB_DB_MIN,
+)
+
 from . import autostart, screens
 from .single_instance import SingleInstance, bring_to_front
 from .theme import (
@@ -42,30 +67,6 @@ from .theme import (
 )
 from .tray import TRAY_SUPPORTED, start_tray
 from .widgets import VSlider
-from klipsch_ble import (
-    KlipschAccessError,
-    KlipschClient,
-    KlipschNotFoundError,
-    discover,
-)
-from klipsch_ble.constants import (
-    CH_DYNBASS,
-    CH_NIGHT,
-    CH_POWERMODE,
-    CH_SUBINVERT,
-    EQ_MAX,
-    EQ_MIN,
-    MAX_VOLUME_RAW,
-    SUB_DB_MAX,
-    SUB_DB_MIN,
-)
-from klipsch_ble.cli import (
-    list_paired_bluetooth,
-    load_config,
-    load_saved_address,
-    save_address,
-    save_config,
-)
 
 # Default for a fresh install (preserves the original always-on-tray behaviour).
 _TRAY_DEFAULT = True
@@ -92,7 +93,7 @@ def _diaglog(msg: str) -> None:
         stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(path, "a", encoding="utf-8") as f:
             f.write(f"{stamp}  {msg}\n")
-    except Exception:  # noqa: BLE001 - diagnostics are best-effort only
+    except Exception:  # diagnostics are best-effort only
         pass
 
 
@@ -470,7 +471,7 @@ class KlipschRemote:
         async with self.lock:
             try:
                 return await make_coro()
-            except Exception as exc:  # noqa: BLE001 - any BLE/GATT failure is user-facing
+            except Exception as exc:  # any BLE/GATT failure is user-facing
                 self.snack(f"{type(exc).__name__}: {exc}", error=True)
                 return None
 
@@ -579,11 +580,11 @@ class KlipschRemote:
                 await client.connect()
                 last_exc = None
                 break
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 last_exc = exc
                 try:
                     await client.disconnect()
-                except Exception:  # noqa: BLE001 - best-effort cleanup before retry
+                except Exception:  # best-effort cleanup before retry
                     pass
                 if attempt < attempts:
                     self.connecting_status.value = (
@@ -641,7 +642,7 @@ class KlipschRemote:
         self._set_busy(True, "Scanning the air for advertising Klipsch …")
         try:
             hits = await discover()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._set_busy(False, f"Scan failed: {exc}")
             return
         if not hits:
@@ -915,7 +916,7 @@ class KlipschRemote:
         enabled = bool(e.control.value)
         try:
             autostart.set_enabled(enabled)
-        except Exception as exc:  # noqa: BLE001 - registry/FS write can fail
+        except Exception as exc:  # registry/FS write can fail
             # Revert the switch to the real (unchanged) state and tell the user.
             e.control.value = not enabled
             e.control.update()
@@ -965,7 +966,7 @@ class KlipschRemote:
         if self.client is not None:
             try:
                 await asyncio.wait_for(self.client.disconnect(), timeout=2.0)
-            except Exception:  # noqa: BLE001 - closing regardless of outcome
+            except Exception:  # closing regardless of outcome
                 pass
         self._remove_tray()
         await self.page.window.destroy()
@@ -1093,7 +1094,7 @@ class KlipschRemote:
 # A module-level handle to the single-instance guard (set in run() when we
 # win the lock), so main() can wire its raise-handler to bring the window
 # forward when a second launch pings us.
-_instance_lock: "SingleInstance | None" = None
+_instance_lock: SingleInstance | None = None
 
 
 def _signal_shot_ready() -> None:
@@ -1108,7 +1109,7 @@ def _signal_shot_ready() -> None:
         pass
 
 
-async def _run_shot(page: ft.Page, remote: "KlipschRemote", shot: str) -> None:
+async def _run_shot(page: ft.Page, remote: KlipschRemote, shot: str) -> None:
     """Navigate to one screen for an offline screenshot, reveal the window, and
     write the ready-marker. Drives the demo transport (no hardware)."""
     from . import _demo
@@ -1122,14 +1123,14 @@ async def _run_shot(page: ft.Page, remote: "KlipschRemote", shot: str) -> None:
     try:
         await asyncio.wait_for(page.window.wait_until_ready_to_show(), timeout=10)
         await page.window.center()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _diaglog(f"shot: window pre-show skipped ({exc!r})")
     page.window.visible = True
     page.window.focused = True
     page.update()
     try:
         await page.window.to_front()
-    except Exception:  # noqa: BLE001 - best-effort
+    except Exception:  # best-effort
         pass
 
     if shot == "connect":
@@ -1217,7 +1218,7 @@ async def main(page: ft.Page) -> None:
     try:
         await asyncio.wait_for(page.window.wait_until_ready_to_show(), timeout=10)
         await page.window.center()
-    except Exception as exc:  # noqa: BLE001 - incl. asyncio.TimeoutError
+    except Exception as exc:  # incl. asyncio.TimeoutError
         _diaglog(f"main: window pre-show step skipped ({exc!r})")
     _diaglog("main: window ready")
 
@@ -1237,7 +1238,7 @@ async def main(page: ft.Page) -> None:
         try:
             if autostart.is_enabled():
                 autostart.set_enabled(True)
-        except Exception:  # noqa: BLE001 - a registration write must never matter
+        except Exception:  # a registration write must never matter
             pass
     asyncio.get_running_loop().run_in_executor(None, _refresh_autostart)
 
@@ -1251,7 +1252,7 @@ async def main(page: ft.Page) -> None:
         page.update()
         try:
             await page.window.to_front()
-        except Exception:  # noqa: BLE001 - best-effort, varies by platform
+        except Exception:  # best-effort, varies by platform
             pass
 
     tray_on = remote.close_to_tray_sw.value

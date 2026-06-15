@@ -22,11 +22,12 @@ device.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Callable, Optional, Protocol, runtime_checkable
+from typing import Callable, Protocol, cast, runtime_checkable
 
 from .constants import (
     CH_CHANNEL_VOLUME,
     CH_DYNBASS,
+    CH_EQMODE,
     CH_FACTORY_RESET,
     CH_FIRMWARE_REVISION,
     CH_HW_REVISION,
@@ -34,22 +35,20 @@ from .constants import (
     CH_MANUFACTURER,
     CH_MASTER_VOLUME,
     CH_MODEL_NUMBER,
-    CH_SERIAL_NUMBER,
-    CH_SOFTWARE_REVISION,
-    CH_SYSTEM_ID,
     CH_MUTE,
     CH_NAME,
     CH_NEXT,
     CH_NIGHT,
     CH_PLAYPAUSE,
     CH_PREV,
+    CH_SERIAL_NUMBER,
+    CH_SOFTWARE_REVISION,
     CH_SUBINVERT,
     CH_SUBMUTE,
     CH_SUBSTATUS,
+    CH_SYSTEM_ID,
     CH_VOCAL,
-    CH_EQMODE,
     EQ_CHANNELS,
-    Input,
     MAX_VOLUME_RAW,
     SUB_CHANNEL,
     SUB_DB_MAX,
@@ -57,6 +56,7 @@ from .constants import (
     SUB_LEVEL_BYTE_INDEX,
     SUB_RAW_MAX,
     SUB_RAW_MIN,
+    Input,
     clamp,
     eq_byte_to_level,
     eq_level_to_byte,
@@ -113,16 +113,16 @@ class KlipschStatus:
     volume_raw: int
     volume_percent: int
     volume_db: int
-    mute: Optional[bool]
-    bass: Optional[int]
-    mid: Optional[int]
-    treble: Optional[int]
-    night: Optional[bool]
-    dynamic_bass: Optional[bool]
-    sub_level_db: Optional[int]
-    sub_invert: Optional[bool]
-    sub_mute: Optional[bool]
-    sub_detected: Optional[bool]
+    mute: bool | None
+    bass: int | None
+    mid: int | None
+    treble: int | None
+    night: bool | None
+    dynamic_bass: bool | None
+    sub_level_db: int | None
+    sub_invert: bool | None
+    sub_mute: bool | None
+    sub_detected: bool | None
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -138,15 +138,15 @@ class DeviceInfo:
     """
 
     model: str
-    name: Optional[str]
-    manufacturer: Optional[str]   # DIS 0x2A29
-    model_number: Optional[str]   # DIS 0x2A24
-    serial_number: Optional[str]  # DIS 0x2A25
-    mac_address: Optional[str]    # serial (= BD_ADDR) rendered as a colon MAC
-    firmware_revision: Optional[str]  # DIS 0x2A26
-    software_revision: Optional[str]  # DIS 0x2A28
-    hardware_revision: Optional[str]  # DIS 0x2A27
-    system_id: Optional[str]      # DIS 0x2A23 (8 bytes, shown as hex)
+    name: str | None
+    manufacturer: str | None   # DIS 0x2A29
+    model_number: str | None   # DIS 0x2A24
+    serial_number: str | None  # DIS 0x2A25
+    mac_address: str | None    # serial (= BD_ADDR) rendered as a colon MAC
+    firmware_revision: str | None  # DIS 0x2A26
+    software_revision: str | None  # DIS 0x2A28
+    hardware_revision: str | None  # DIS 0x2A27
+    system_id: str | None      # DIS 0x2A23 (8 bytes, shown as hex)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -179,13 +179,13 @@ class KlipschClient:
         self._client: BleakLike | None = None
 
     # --- connection ---
-    async def connect(self) -> "KlipschClient":
+    async def connect(self) -> KlipschClient:
         if self._client is not None:
             return self
         client = self._client_factory(self.address, self.timeout)
         try:
             await client.connect()
-        except Exception as exc:  # noqa: BLE001 — narrowed below
+        except Exception as exc:  # narrowed below
             client = await self._scan_prime_and_build(exc)
             await client.connect()
         self._client = client
@@ -241,7 +241,7 @@ class KlipschClient:
             await self._require_client().read_gatt_char(CH_MASTER_VOLUME)
         except KlipschError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise KlipschAccessError(
                 "control characteristics are unreachable — there is no working "
                 "bond. Add the speaker to the OS as an AUDIO device (not as a "
@@ -255,7 +255,7 @@ class KlipschClient:
             finally:
                 self._client = None
 
-    async def __aenter__(self) -> "KlipschClient":
+    async def __aenter__(self) -> KlipschClient:
         return await self.connect()
 
     async def __aexit__(self, *exc: object) -> None:
@@ -272,7 +272,7 @@ class KlipschClient:
             data = await self._require_client().read_gatt_char(char_uuid)
         except KlipschError:
             raise
-        except Exception:  # noqa: BLE001 - characteristic absent / unreadable
+        except Exception:  # characteristic absent / unreadable
             return None
         return bytes(data)
 
@@ -311,7 +311,7 @@ class KlipschClient:
         b = await self.read_byte(CH_INPUT)
         return normalize_input(b if b is not None else 0)
 
-    async def set_input(self, value: "Input | str | int") -> None:
+    async def set_input(self, value: Input | str | int) -> None:
         selected = normalize_input(value)
         if selected is Input.OFF and not self.allow_power_off:
             raise PowerOffDisabledError(
@@ -475,7 +475,9 @@ def _bleak_factory(target: object, timeout: float) -> BleakLike:
     """Plain bleak factory (used on Linux/macOS, and as the Windows fallback)."""
     from bleak import BleakClient
 
-    return BleakClient(target, timeout=timeout)
+    # bleak's BleakClient satisfies BleakLike at runtime; its type stubs are just
+    # broader (BLEDevice | str target, char_specifier vs char), so bridge the seam.
+    return cast(BleakLike, BleakClient(target, timeout=timeout))  # type: ignore[arg-type]
 
 
 def _default_factory() -> ClientFactory:

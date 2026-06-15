@@ -234,7 +234,7 @@ INPUT_NAMES: dict[Input, str] = {
 }
 
 
-def normalize_input(value: "Input | str | int") -> Input:
+def normalize_input(value: Input | str | int) -> Input:
     """Coerce a user-facing input (enum / name / number) to an :class:`Input`."""
     if isinstance(value, Input):
         return value
@@ -254,6 +254,6 @@ def normalize_input(value: "Input | str | int") -> Input:
         raise ValueError(f"unknown input value {value!r}; expected one of: {valid}") from exc
 
 
-def input_name(value: "Input | int") -> str:
+def input_name(value: Input | int) -> str:
     """Canonical lowercase name for an input value."""
     return INPUT_NAMES[normalize_input(value)]

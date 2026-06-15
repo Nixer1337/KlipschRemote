@@ -76,7 +76,7 @@ def _host_executable() -> str:
             buf = ctypes.create_string_buffer(size.value)
             if libc._NSGetExecutablePath(buf, ctypes.byref(size)) == 0:
                 return os.path.realpath(buf.value.decode())
-        except Exception:  # noqa: BLE001 - fall back to sys.executable below
+        except Exception:  # fall back to sys.executable below
             pass
     else:  # linux / other posix
         # A Linux AppImage exposes its own path here — relaunch the .AppImage,
@@ -190,7 +190,7 @@ def launched_at_startup() -> bool:
     if sys.platform == "win32":
         try:
             return _win_parent_image_name() == "svchost.exe"
-        except Exception:  # noqa: BLE001 - treat detection failure as "manual"
+        except Exception:  # treat detection failure as "manual"
             return False
     return _AUTOSTART_FLAG in sys.argv
 
@@ -429,5 +429,5 @@ def migrate_legacy() -> None:
     try:
         if _win_has_legacy_run() and not _win_is_enabled():
             set_enabled(True)   # creates the task + clears the legacy value
-    except Exception:  # noqa: BLE001 - migration must never block startup
+    except Exception:  # migration must never block startup
         pass

@@ -45,7 +45,7 @@ ABOUT_FIELDS: list[tuple[str, str, str]] = [
 ]
 
 
-def connect_controls(r: "KlipschRemote") -> list[ft.Control]:
+def connect_controls(r: KlipschRemote) -> list[ft.Control]:
     """The connect screen: a top form (paired picker + address) and a fixed
     bottom action bar (Scan · Connect)."""
     form = ft.Column(
@@ -80,7 +80,7 @@ def connect_controls(r: "KlipschRemote") -> list[ft.Control]:
     return [screen]
 
 
-def connecting_controls(r: "KlipschRemote") -> list[ft.Control]:
+def connecting_controls(r: KlipschRemote) -> list[ft.Control]:
     """A centered Material loading screen shown while connecting + reading
     state: an indeterminate progress ring over a title and live status."""
     screen = ft.Column(
@@ -103,7 +103,7 @@ def connecting_controls(r: "KlipschRemote") -> list[ft.Control]:
     return [screen]
 
 
-def remote_controls(r: "KlipschRemote") -> list[ft.Control]:
+def remote_controls(r: KlipschRemote) -> list[ft.Control]:
     """The main remote: header + a scroll viewport of cards (volume, input,
     playback, EQ, audio adjustments, settings entry)."""
     def card(icon: str, title: str, *content: ft.Control) -> ft.Card:
@@ -258,7 +258,7 @@ def remote_controls(r: "KlipschRemote") -> list[ft.Control]:
     return [header_bar, scroller]
 
 
-def settings_controls(r: "KlipschRemote") -> list[ft.Control]:
+def settings_controls(r: KlipschRemote) -> list[ft.Control]:
     """The Settings screen: rename, auto-connect, startup/tray, power, sub,
     factory reset."""
     def section(title: str) -> ft.Control:
@@ -427,7 +427,7 @@ def settings_controls(r: "KlipschRemote") -> list[ft.Control]:
     return [header_bar, scroller]
 
 
-def about_controls(r: "KlipschRemote") -> list[ft.Control]:
+def about_controls(r: KlipschRemote) -> list[ft.Control]:
     """The About page: every read-only field the speaker reports, each a Material
     list item (icon · label · value). Values are filled from a ``device_info()``
     read after the page opens (see ``KlipschRemote._load_device_info``); they show

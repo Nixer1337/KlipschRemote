@@ -10,4 +10,4 @@ from .app import KlipschRemote, main, run
 
 __version__ = "0.1.0"
 
-__all__ = ["KlipschRemote", "main", "run", "__version__"]
+__all__ = ["KlipschRemote", "__version__", "main", "run"]

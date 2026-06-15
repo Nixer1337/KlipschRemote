@@ -31,7 +31,7 @@ class KlipschModel(Enum):
     UNKNOWN = "unknown"
 
     @property
-    def info(self) -> "ModelInfo":
+    def info(self) -> ModelInfo:
         return MODEL_INFO[self]
 
     @property
@@ -66,7 +66,7 @@ _LINE_INPUTS: tuple[Input, ...] = (
 class ModelInfo:
     """Static description of one model."""
 
-    model: "KlipschModel"
+    model: KlipschModel
     display_name: str
     model_numbers: tuple[str, ...]          # DIS 0x2A24 values
     hardware_revs: tuple[int, ...] = ()      # DIS 0x2A27 values (if distinctive)
@@ -77,7 +77,7 @@ class ModelInfo:
 # DIS Model Number (0x2A24) literals, from CinemaStreamUtil._clinit_.
 # Note: "The Fives" and "The Fives McLaren" share model number 1067563 and are
 # told apart only by the Hardware Revision (V1=1, V2=2, McLaren=3).
-MODEL_INFO: dict["KlipschModel", ModelInfo] = {
+MODEL_INFO: dict[KlipschModel, ModelInfo] = {
     KlipschModel.FIVES: ModelInfo(
         KlipschModel.FIVES, "The Fives", ("1067563",), hardware_revs=(1, 2)),
     KlipschModel.FIVES_MCLAREN: ModelInfo(
@@ -101,7 +101,7 @@ MODEL_INFO: dict["KlipschModel", ModelInfo] = {
 # clobber the plain Fives: a bare number resolves to FIVES and the Hardware
 # Revision refines that one case (see :func:`resolve_model`).
 def _build_reverse_lookups() -> tuple[
-    dict[str, "KlipschModel"], dict[int, "KlipschModel"]
+    dict[str, KlipschModel], dict[int, KlipschModel]
 ]:
     by_number: dict[str, KlipschModel] = {}
     by_rev: dict[int, KlipschModel] = {}

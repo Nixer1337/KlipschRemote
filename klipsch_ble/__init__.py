@@ -19,8 +19,8 @@ from .client import (
 from .constants import (
     EQ_MAX,
     EQ_MIN,
-    Input,
     MAX_VOLUME_RAW,
+    Input,
     input_name,
     normalize_input,
     volume_percent_to_raw,

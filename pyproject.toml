@@ -1,0 +1,34 @@
+# Tooling config for KlipschRemote. The project is run from source / packaged
+# with flet (see requirements.txt + build_app.*); there is no setuptools build
+# here, so this file only carries linter / type-checker settings.
+
+[tool.ruff]
+target-version = "py39"   # the project supports Python 3.9+ (see tests.yml matrix)
+line-length = 88
+
+[tool.ruff.lint]
+# Pyflakes (F) + a curated slice of pycodestyle (E), import sorting (I),
+# bugbear (B), pyupgrade (UP) and Ruff's own rules (RUF). Deliberately NOT the
+# whole E/W set (no line-length nagging) nor opinionated families like SIM.
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "RUF"]
+ignore = [
+    "B905",    # zip(strict=...) needs Python 3.10; the project still supports 3.9
+    "RUF022",  # keep __all__ grouped by area with comments, not A-Z sorted
+]
+
+[tool.ruff.lint.per-file-ignores]
+# ctypes reads `_fields_` off the class; it must be a real list, not a footgun.
+"klipsch_ble/cli.py" = ["RUF012"]
+
+[tool.mypy]
+# mypy 2.x can no longer target 3.9; 3.10 is the floor. Runtime 3.9 support is
+# guarded by the pytest matrix + ruff's target-version instead.
+python_version = "3.10"
+ignore_missing_imports = true   # bleak / winrt / flet / pystray ship no type stubs
+
+[[tool.mypy.overrides]]
+# Windows-only ctypes + WinRT glue: not importable on the Linux CI runner, and
+# its behaviour can only be verified on Windows hardware. Linted by ruff, but
+# kept out of the cross-platform type gate. Revisit if a strict pass is wanted.
+module = ["klipsch_ble.winrt_backend", "klipsch_ble.cli"]
+ignore_errors = true
