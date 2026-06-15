@@ -25,7 +25,7 @@
     ["category", "Model", "modelDisplay"],
     ["business", "Manufacturer", "manufacturer"],
     ["memory", "Firmware", "firmware_revision"],
-    ["terminal", "MCU Firmware Version", "software_revision"],
+    ["terminal", "MCU Firmware", "software_revision"],
     ["developer_board", "Hardware", "hardware_revision"],
     ["numbers", "Model number", "model_number"],
     ["fingerprint", "System ID", "system_id"],
@@ -267,7 +267,7 @@
       connectBtn: $("connect-btn"), connectStatus: $("connect-status"), connectError: $("connect-error"),
       connectingStatus: $("connecting-status"),
       // remote
-      remoteBack: $("remote-back"), remoteRefresh: $("remote-refresh"), modelName: $("model-name"),
+      remoteRefresh: $("remote-refresh"), modelName: $("model-name"),
       muteBtn: $("mute-btn"), volume: $("volume"),
       inputGrid: $("input-grid"),
       prev: $("prev"), playpause: $("playpause"), next: $("next"),
@@ -277,7 +277,7 @@
       dynbass: $("dynbass"), night: $("night"),
       openSettings: $("open-settings"),
       // settings
-      settingsBack: $("settings-back"),
+      settingsBack: $("settings-back"), settingsDisconnect: $("settings-disconnect"),
       renameRow: $("rename-row"), nameValue: $("name-value"),
       subStatus: $("sub-status"), subCard: $("sub-card"),
       subLevel: $("sub-level"), subLevelVal: $("sub-level-val"),
@@ -304,7 +304,7 @@
     els.connectBtn.addEventListener("click", onConnect);
 
     // navigation
-    els.remoteBack.addEventListener("click", onDisconnect);
+    els.settingsDisconnect.addEventListener("click", onDisconnect);
     els.remoteRefresh.addEventListener("click", () => guard(loadAll, "Refresh failed"));
     els.openSettings.addEventListener("click", () => showScreen("settings"));
     els.settingsBack.addEventListener("click", () => showScreen("remote"));

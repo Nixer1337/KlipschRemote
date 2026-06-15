@@ -84,7 +84,10 @@
     <!-- ============================= REMOTE ============================ -->
     <section id="screen-remote" class="screen" hidden>
       <header class="appbar">
-        <button class="iconbtn" id="remote-back" title="Disconnect"><span class="mi">arrow_back_ios_new</span></button>
+        <!-- Spacer balancing the refresh button so the title stays centred. No
+             back-arrow here: disconnect lives in Settings — it was too easy to
+             hit by reflex, dropping the connection. -->
+        <span class="iconbtn-spacer"></span>
         <h2 id="model-name" class="appbar-title">Klipsch speaker</h2>
         <button class="iconbtn" id="remote-refresh" title="Refresh status"><span class="mi">refresh</span></button>
       </header>
@@ -246,6 +249,12 @@
             <span class="mi">open_in_new</span>
           </a>
         </div>
+
+        <!-- Disconnect — the deliberate way to drop the BLE link, a full-width
+             red button at the foot of Settings (mirrors the connect button). -->
+        <button id="settings-disconnect" class="btn btn-danger btn-block disconnect-btn">
+          <span class="mi">link_off</span> Disconnect
+        </button>
         <div class="scroll-foot"></div>
       </div>
     </section>

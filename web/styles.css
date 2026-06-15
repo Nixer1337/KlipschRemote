@@ -130,6 +130,8 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .btn-primary { background: var(--primary); color: var(--on-primary); border-color: transparent; }
 .btn-danger { background: var(--error); color: var(--on-error); border-color: transparent; }
 .btn-block { width: 100%; }
+/* Disconnect at the foot of Settings — a little gap above the last group. */
+.disconnect-btn { margin-top: 16px; }
 
 /* Connect screen ------------------------------------------------------------ */
 .connect { display: flex; flex-direction: column; min-height: 100dvh; padding: 16px; }

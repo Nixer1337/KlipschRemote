@@ -36,7 +36,7 @@ ABOUT_FIELDS: list[tuple[str, str, str]] = [
     (ft.Icons.CATEGORY, "Model", "model"),
     (ft.Icons.BUSINESS, "Manufacturer", "manufacturer"),
     (ft.Icons.MEMORY, "Firmware", "firmware_revision"),
-    (ft.Icons.TERMINAL, "MCU Firmware Version", "software_revision"),
+    (ft.Icons.TERMINAL, "MCU Firmware", "software_revision"),
     (ft.Icons.DEVELOPER_BOARD, "Hardware", "hardware_revision"),
     (ft.Icons.NUMBERS, "Model number", "model_number"),
     (ft.Icons.QR_CODE_2, "Serial number", "serial_number"),
@@ -117,8 +117,10 @@ def remote_controls(r: "KlipschRemote") -> list[ft.Control]:
 
     header = ft.Row(
         [
-            ft.IconButton(ft.Icons.ARROW_BACK_IOS_NEW, tooltip="Disconnect",
-                          on_click=r._on_disconnect),
+            # Spacer balancing the refresh button so the title stays centred.
+            # No back-arrow here: disconnect lives in Settings now — an arrow in
+            # this spot was too easy to hit by reflex, dropping the connection.
+            ft.Container(width=48),
             ft.Container(r.model_text, expand=True,
                          alignment=ft.Alignment.CENTER),
             ft.IconButton(ft.Icons.REFRESH, tooltip="Refresh status",
@@ -383,6 +385,17 @@ def settings_controls(r: "KlipschRemote") -> list[ft.Control]:
                    desc="View the project on GitHub.",
                    on_click=r._on_open_repo)
     about_app = grouped(repo_row)
+    # Disconnect — the deliberate way to drop the BLE link. A full-width filled
+    # button in the error colour at the very foot of Settings, mirroring the
+    # connect screen's primary button. (The remote no longer carries a top-bar
+    # back-arrow for this; it was too easy to hit when reaching for "back".)
+    disconnect_btn = ft.Container(
+        ft.Row([ft.FilledButton(
+            "Disconnect", icon=ft.Icons.LINK_OFF, on_click=r._on_disconnect,
+            expand=True, height=46,
+            style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR,
+                                 color=ft.Colors.ON_ERROR))]),
+        padding=ft.Padding.only(top=12))
 
     header = ft.Row(
         [ft.IconButton(ft.Icons.ARROW_BACK_IOS_NEW, tooltip="Back",
@@ -404,7 +417,8 @@ def settings_controls(r: "KlipschRemote") -> list[ft.Control]:
          sub_section_header, r.sub_card,
          section("Power Management"), power,
          section("Product"), product,
-         section("About this app"), about_app],
+         section("About this app"), about_app,
+         disconnect_btn],
         spacing=8, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
     scroller = ft.Column(
         [ft.Container(body, padding=ft.Padding.only(
