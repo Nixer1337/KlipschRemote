@@ -232,6 +232,24 @@ def test_sub_toggles_roundtrip():
     run(go())
 
 
+# ---- speaker placement / boundary gain -------------------------------------
+def test_placement_roundtrip_and_default():
+    from klipsch_ble.constants import Placement
+
+    async def go():
+        # A valid stored byte decodes to the matching placement.
+        fake = FakeBleak({c.CH_BOUNDARY_GAIN: bytes([Placement.OPEN.value])})
+        async with make_client(fake) as client:
+            assert await client.get_placement() is Placement.OPEN
+            await client.set_placement("corner")
+            assert fake.store[c.CH_BOUNDARY_GAIN] == bytes([Placement.CORNER.value])
+        # Absent (or unrecognised) -> WALL default, not an exception.
+        async with make_client(FakeBleak()) as client:
+            assert await client.get_placement() is Placement.WALL
+
+    run(go())
+
+
 # ---- factory reset ---------------------------------------------------------
 def test_factory_reset_writes_single_zero():
     fake = FakeBleak()

@@ -60,6 +60,8 @@ from .constants import (
     SUB_DB_MAX,
     SUB_DB_MIN,
     clamp,
+    normalize_placement,
+    placement_name,
     volume_percent_to_raw,
     volume_raw_to_db,
     volume_raw_to_percent,
@@ -400,6 +402,7 @@ INPUT       in <tv|bluetooth|optical|analog|usb|phono | 1..6>
 EQ          bass <+-N|N> | mid <+-N|N> | treble <+-N|N>   (-10..+6)
 SUBWOOFER   sublevel <+-N|N> (-21..+10 dB) | submute on|off | subinvert on|off
 MODES       night on|off | dynbass on|off | vocal 0..3 | eq 0..5
+PLACEMENT   placement <corner|wall|open>   (boundary bass gain)
 TRANSPORT   play | next | prev
 OTHER       name <new name> | info (firmware/serial) | s (full status) | r (volume) | ? | q (quit)
 DANGER      factory-reset (wipes all settings; asks to confirm)"""
@@ -506,6 +509,17 @@ async def handle_command(f: KlipschClient, low: str):
     if head == "eq" and arg.lstrip("-").isdigit():
         await f.set_eqmode(int(arg))
         return _say(f"eq preset -> {clamp(int(arg), 0, 5)}")
+
+    # speaker placement / boundary gain (corner/wall/open)
+    if head in ("placement", "place"):
+        if not rest:
+            return _say(f"placement: {placement_name(await f.get_placement())}")
+        try:
+            target = normalize_placement(rest)
+        except ValueError:
+            return _say("unknown placement (corner/wall/open)")
+        await f.set_placement(target)
+        return _say(f"placement -> {placement_name(target)}")
 
     # transport
     if head in ("play", "pause", "playpause"):
@@ -642,6 +656,7 @@ def build_parser():
         ("submute", "on|off"), ("subinvert", "on|off"),
         ("night", "on|off"), ("dynbass", "on|off"),
         ("vocal", "0..3"), ("eq", "0..5"),
+        ("placement", "corner|wall|open"),
         ("play", ""), ("next", ""), ("prev", ""), ("name", "<new name>"),
         ("factory-reset", "wipe ALL settings (asks to confirm)"),
     ]:

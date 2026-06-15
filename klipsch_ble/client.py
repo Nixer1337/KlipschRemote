@@ -25,6 +25,7 @@ from dataclasses import asdict, dataclass
 from typing import Callable, Protocol, cast, runtime_checkable
 
 from .constants import (
+    CH_BOUNDARY_GAIN,
     CH_CHANNEL_VOLUME,
     CH_DYNBASS,
     CH_EQMODE,
@@ -57,11 +58,14 @@ from .constants import (
     SUB_RAW_MAX,
     SUB_RAW_MIN,
     Input,
+    Placement,
     clamp,
     eq_byte_to_level,
     eq_level_to_byte,
     input_name,
     normalize_input,
+    normalize_placement,
+    placement_from_byte,
     sub_db_to_raw,
     sub_detected_from_bytes,
     sub_raw_to_db,
@@ -371,6 +375,20 @@ class KlipschClient:
 
     async def set_sub_mute(self, on: bool) -> None:
         await self.set_toggle(CH_SUBMUTE, on)
+
+    # --- speaker placement / boundary gain ---
+    async def get_placement(self) -> Placement:
+        """Current speaker-placement (boundary-gain) setting.
+
+        Reads CH_BOUNDARY_GAIN; an unrecognised or absent value reports WALL,
+        the app's default (the app's ``checkBoundryGainType``)."""
+        return placement_from_byte(await self.read_byte(CH_BOUNDARY_GAIN))
+
+    async def set_placement(self, value: Placement | str | int) -> None:
+        """Set the speaker placement — corner/wall/open — i.e. how much bass to
+        add for the boundaries around the speaker. Accepts an enum, a name
+        (``"corner"``/``"wall"``/``"open"`` and aliases) or the raw byte."""
+        await self.write_byte(CH_BOUNDARY_GAIN, normalize_placement(value).value)
 
     # --- factory reset ---
     async def factory_reset(self) -> None:

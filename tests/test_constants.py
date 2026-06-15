@@ -102,3 +102,36 @@ def test_clamp():
     assert c.clamp(5, 0, 10) == 5
     assert c.clamp(-1, 0, 10) == 0
     assert c.clamp(11, 0, 10) == 10
+
+
+# ---- speaker placement / boundary gain -------------------------------------
+@pytest.mark.parametrize("value, expected", [
+    ("corner", c.Placement.CORNER), ("wall", c.Placement.WALL),
+    ("open", c.Placement.OPEN), ("free", c.Placement.OPEN),
+    ("on_wall", c.Placement.WALL), ("table", c.Placement.OPEN),
+    (4, c.Placement.CORNER), ("7", c.Placement.WALL), (10, c.Placement.OPEN),
+    (c.Placement.OPEN, c.Placement.OPEN),
+])
+def test_normalize_placement_accepts_name_alias_number_enum(value, expected):
+    assert c.normalize_placement(value) is expected
+
+
+def test_normalize_placement_rejects_unknown():
+    with pytest.raises(ValueError):
+        c.normalize_placement("ceiling")
+    with pytest.raises(ValueError):
+        c.normalize_placement(5)  # not one of the valid bytes 4/7/10
+
+
+@pytest.mark.parametrize("byte, expected", [
+    (4, c.Placement.CORNER), (7, c.Placement.WALL), (10, c.Placement.OPEN),
+    # checkBoundryGainType: any other / absent value defaults to WALL.
+    (0, c.Placement.WALL), (99, c.Placement.WALL), (None, c.Placement.WALL),
+])
+def test_placement_from_byte_defaults_to_wall(byte, expected):
+    assert c.placement_from_byte(byte) is expected
+
+
+def test_placement_name_is_canonical_lowercase():
+    assert c.placement_name(c.Placement.OPEN) == "open"
+    assert c.placement_name(7) == "wall"

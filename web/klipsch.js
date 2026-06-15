@@ -49,6 +49,7 @@
   const CH_SUBSTATUS = u("13"); // read-only; int(value) == 1 => sub detected
   const CH_DYNBASS = u("14"); // 0/1
   const CH_SUBINVERT = u("15"); // 0/1 — subwoofer "Phase Invert"
+  const CH_BOUNDARY_GAIN = u("08"); // speaker placement: 1 byte (4=corner/7=wall/10=open)
 
   // Input service
   const CH_INPUT = u("d2"); // byte 0..6
@@ -90,6 +91,7 @@
     [CH_SUBSTATUS]: SVC_EQ,
     [CH_DYNBASS]: SVC_EQ,
     [CH_SUBINVERT]: SVC_EQ,
+    [CH_BOUNDARY_GAIN]: SVC_EQ,
     [CH_INPUT]: SVC_INPUT,
     [CH_POWERMODE]: SVC_UI,
     [CH_NAME]: SVC_UI,
@@ -152,6 +154,31 @@
     throw new Error(`unknown input ${value}`);
   }
   const inputName = (v) => INPUT_NAMES[normalizeInput(v)];
+
+  // ---- speaker placement / boundary gain (mirror constants.py) -------------
+  // 1 byte written to CH_BOUNDARY_GAIN; the byte IS the low-frequency gain, so a
+  // free-standing speaker boosts bass most and a corner (which already reinforces
+  // bass) least. An unrecognised read defaults to WALL.
+  const Placement = { CORNER: 4, WALL: 7, OPEN: 10 };
+  const PLACEMENT_DEFAULT = 7;
+  const PLACEMENT_NAMES = { 4: "corner", 7: "wall", 10: "open" };
+  const PLACEMENT_ALIASES = {
+    corner: 4, wall: 7, on_wall: 7,
+    open: 10, free: 10, freestanding: 10, table: 10, tabletop: 10, other: 10, others: 10,
+  };
+  function normalizePlacement(value) {
+    if (typeof value === "number") {
+      if (PLACEMENT_NAMES[value]) return value;
+      throw new Error(`unknown placement value ${value}`);
+    }
+    const key = String(value).trim().toLowerCase();
+    if (/^\d+$/.test(key)) return normalizePlacement(parseInt(key, 10));
+    if (key in PLACEMENT_ALIASES) return PLACEMENT_ALIASES[key];
+    throw new Error(`unknown placement ${value}`);
+  }
+  const placementName = (v) => PLACEMENT_NAMES[normalizePlacement(v)];
+  // Decode CH_BOUNDARY_GAIN: only 4/7/10 are valid; anything else (or absent) -> WALL.
+  const placementFromByte = (b) => (b != null && PLACEMENT_NAMES[b] ? b : PLACEMENT_DEFAULT);
 
   // ---- model identification (mirror models.py) -----------------------------
   // DIS Model Number (0x2A24) -> model; the Fives share 1067563 and are split by
@@ -377,6 +404,10 @@
     getSubMute() { return this.getToggle(CH_SUBMUTE); }
     setSubMute(on) { return this.setToggle(CH_SUBMUTE, on); }
 
+    // --- speaker placement / boundary gain ---
+    async getPlacement() { return placementFromByte(await this.readByte(CH_BOUNDARY_GAIN)); }
+    setPlacement(value) { return this.writeByte(CH_BOUNDARY_GAIN, normalizePlacement(value)); }
+
     // --- toggles & modes ---
     async getToggle(charUuid) { const b = await this.readByte(charUuid); return b == null ? null : !!b; }
     setToggle(charUuid, on) { return this.writeByte(charUuid, on ? 1 : 0); }
@@ -487,6 +518,7 @@
   global.Klipsch = {
     KlipschClient,
     Input, inputName, normalizeInput,
+    Placement, placementName, normalizePlacement,
     EQ_PRESETS, INPUTS,
     MAX_VOLUME_RAW, EQ_MIN, EQ_MAX, SUB_DB_MIN, SUB_DB_MAX,
     volumeRawToPercent, volumeRawToDb, subRawToDb,

@@ -48,6 +48,7 @@ CH_EQMODE = _u("12")         # preset 0..5
 CH_SUBSTATUS = _u("13")      # read-only; whole value as int == 1 => sub detected
 CH_DYNBASS = _u("14")        # 0/1
 CH_SUBINVERT = _u("15")      # 0/1 — subwoofer "Phase Invert"
+CH_BOUNDARY_GAIN = _u("08")  # speaker placement: 1 byte (4=corner/7=wall/10=open)
 
 # Input service
 CH_INPUT = _u("d2")          # byte 0..6
@@ -93,6 +94,7 @@ CHAR_TO_SERVICE: dict[str, str] = {
     CH_SUBSTATUS: SVC_EQ,
     CH_DYNBASS: SVC_EQ,
     CH_SUBINVERT: SVC_EQ,
+    CH_BOUNDARY_GAIN: SVC_EQ,
     CH_INPUT: SVC_INPUT,
     CH_POWERMODE: SVC_UI,
     CH_NAME: SVC_UI,
@@ -257,3 +259,79 @@ def normalize_input(value: Input | str | int) -> Input:
 def input_name(value: Input | int) -> str:
     """Canonical lowercase name for an input value."""
     return INPUT_NAMES[normalize_input(value)]
+
+
+# ---- speaker placement / boundary gain --------------------------------------
+# The app's "Speaker Placement" screen: a boundary-gain bass compensation written
+# as a single byte to CH_BOUNDARY_GAIN. The byte IS the low-frequency gain — a
+# free-standing speaker gets the most bass boost; a corner (where the room already
+# reinforces bass) the least. Values are taken verbatim from the app's
+# ``getBytesForBoundryGain``; an unrecognised read defaults to WALL (the app's
+# ``checkBoundryGainType``).
+class Placement(IntEnum):
+    """Speaker placement, written to :data:`CH_BOUNDARY_GAIN`."""
+
+    CORNER = 4   # in a corner — least added bass
+    WALL = 7     # against a wall — the default
+    OPEN = 10    # free-standing / on a table — most added bass
+
+
+PLACEMENT_DEFAULT = Placement.WALL
+
+PLACEMENT_NAMES: dict[Placement, str] = {
+    Placement.CORNER: "corner",
+    Placement.WALL: "wall",
+    Placement.OPEN: "open",
+}
+
+PLACEMENT_ALIASES: dict[str, Placement] = {
+    "corner": Placement.CORNER,
+    "wall": Placement.WALL,
+    "on_wall": Placement.WALL,
+    "open": Placement.OPEN,
+    "free": Placement.OPEN,
+    "freestanding": Placement.OPEN,
+    "table": Placement.OPEN,
+    "tabletop": Placement.OPEN,
+    "other": Placement.OPEN,
+    "others": Placement.OPEN,
+}
+
+
+def normalize_placement(value: Placement | str | int) -> Placement:
+    """Coerce a user-facing placement (enum / name / number) to a :class:`Placement`."""
+    if isinstance(value, Placement):
+        return value
+    if isinstance(value, str):
+        key = value.strip().lower()
+        if key.isdigit():
+            return normalize_placement(int(key))
+        try:
+            return PLACEMENT_ALIASES[key]
+        except KeyError as exc:
+            choices = ", ".join(sorted(PLACEMENT_ALIASES))
+            raise ValueError(f"unknown placement {value!r}; expected one of: {choices}") from exc
+    try:
+        return Placement(value)
+    except ValueError as exc:
+        valid = ", ".join(f"{name}={item.value}" for item, name in PLACEMENT_NAMES.items())
+        raise ValueError(f"unknown placement value {value!r}; expected one of: {valid}") from exc
+
+
+def placement_name(value: Placement | int) -> str:
+    """Canonical lowercase name for a placement value."""
+    return PLACEMENT_NAMES[normalize_placement(value)]
+
+
+def placement_from_byte(byte: int | None) -> Placement:
+    """Decode CH_BOUNDARY_GAIN; an unrecognised/absent value means WALL.
+
+    Mirrors the app's ``checkBoundryGainType``: only 4/7/10 are valid bytes, and
+    anything else (including a missing read) falls back to the WALL default.
+    """
+    if byte is None:
+        return PLACEMENT_DEFAULT
+    try:
+        return Placement(byte)
+    except ValueError:
+        return PLACEMENT_DEFAULT

@@ -33,6 +33,7 @@ from klipsch_ble import (
     KlipschClient,
     KlipschNotFoundError,
     discover,
+    placement_name,
 )
 from klipsch_ble.cli import (
     list_paired_bluetooth,
@@ -78,6 +79,19 @@ _TRAY_DEFAULT = True
 _DEMO = os.environ.get("KLIPSCH_DEMO") == "1"
 _SHOT = (os.environ.get("KLIPSCH_SHOT") or "").strip().lower() or None
 _SHOT_MODE = _DEMO and _SHOT is not None
+
+# Speaker-placement (boundary-gain) copy: the live description shown under the
+# selector for the current choice. The byte each maps to is the bass gain the
+# speaker adds — most when free-standing, least in a corner (where the room
+# already reinforces bass). See klipsch_ble.constants.Placement.
+_PLACEMENT_HINT: dict[str, str] = {
+    "corner": "In a corner the room reinforces bass the most — the speaker adds "
+              "the least.",
+    "wall": "Against a wall the room adds some bass — the speaker adds a "
+            "moderate amount.",
+    "open": "Free-standing, away from walls — no room reinforcement, so the "
+            "speaker adds the most bass.",
+}
 
 
 def _diaglog(msg: str) -> None:
@@ -269,6 +283,34 @@ class KlipschRemote:
         self.sub_level_value_text = ft.Text(
             "0 dB", color=ft.Colors.ON_SURFACE_VARIANT)
 
+        # --- speaker placement (boundary gain) — Settings ---
+        # A Material 3 segmented button: one mutually-exclusive choice of where
+        # the speaker sits, which sets how much bass it adds back (CH_BOUNDARY_
+        # GAIN). Segment values are the placement names (corner/wall/open) so
+        # they pass straight to client.set_placement. WALL is the speaker's
+        # default until the real value is read on open (_load_placement).
+        # NB: `selected` MUST be a list, not a set — Flet msgpack-serializes the
+        # control tree and a set raises "can not serialize 'set' object".
+        self._placement = "wall"
+        self.placement_seg = ft.SegmentedButton(
+            allow_multiple_selection=False, allow_empty_selection=False,
+            show_selected_icon=False, selected=["wall"],
+            on_change=self._on_placement,
+            segments=[
+                ft.Segment(value="corner", label=ft.Text("Corner"),
+                           icon=ft.Icon(ft.Icons.ROUNDED_CORNER),
+                           tooltip="In a corner — least added bass"),
+                ft.Segment(value="wall", label=ft.Text("Wall"),
+                           icon=ft.Icon(ft.Icons.CROP_SQUARE),
+                           tooltip="Against a wall — balanced bass"),
+                ft.Segment(value="open", label=ft.Text("Open"),
+                           icon=ft.Icon(ft.Icons.OPEN_IN_FULL),
+                           tooltip="Free-standing — most added bass"),
+            ])
+        # Live description of the current choice, under the selector.
+        self.placement_hint_text = ft.Text(
+            _PLACEMENT_HINT["wall"], size=11, color=ft.Colors.ON_SURFACE_VARIANT)
+
         # --- modes (Audio Adjustments collapsible) ---
         self.dynbass_sw = ft.Switch(value=False, data="dynamic_bass",
                                     on_change=self._on_toggle)
@@ -429,7 +471,7 @@ class KlipschRemote:
         this tab is instant and doesn't visibly re-run detection."""
         self.page.scroll = None
         self._present(screens.settings_controls(self), key="settings",
-                      after=self._load_standby)
+                      after=self._load_settings_extras)
 
     def show_about(self) -> None:
         """The About page (Settings > Product > About).
@@ -829,6 +871,36 @@ class KlipschRemote:
     def _on_sub_mute(self, _e: ft.ControlEvent) -> None:
         self.page.run_task(self._sub_mute)
 
+    # ----------------------------------------------- speaker placement
+    def _reflect_placement(self, name: str) -> None:
+        """Mirror a placement name into the segmented button + hint line.
+
+        Pure (no ``.update()``) so it's safe before the controls are attached;
+        callers push the update."""
+        self._placement = name
+        self.placement_seg.selected = [name]
+        self.placement_hint_text.value = _PLACEMENT_HINT.get(
+            name, _PLACEMENT_HINT["wall"])
+
+    async def _apply_placement(self, name: str) -> None:
+        # set_placement accepts the placement name directly (corner/wall/open).
+        # NB: named _apply_placement, NOT _placement — the latter is the cached
+        # name attribute (self._placement), which would shadow a same-named
+        # method and make run_task receive a string ("handler must be a
+        # coroutine function").
+        await self._guard(lambda: self.client.set_placement(name))
+        self._reflect_placement(name)
+        self.page.update()
+
+    def _on_placement(self, e: ft.ControlEvent) -> None:
+        # SegmentedButton hands back the new selection as a one-element list.
+        selected = e.control.selected
+        if not selected:
+            return
+        name = selected[0]
+        if name != self._placement:
+            self.page.run_task(self._apply_placement, name)
+
     def _adj_radius(self) -> ft.BorderRadius:
         """Header corners: all rounded when collapsed, only the top when open."""
         return (ft.BorderRadius.only(top_left=12, top_right=12) if self._adj_open
@@ -898,6 +970,13 @@ class KlipschRemote:
             text.update()
         self.about_status.update()
 
+    async def _load_settings_extras(self) -> None:
+        """Read the Settings-only speaker state lazily on open: auto-standby
+        (PowerMode) and speaker placement (boundary gain). Neither is part of the
+        main status() read, so they're fetched here when the tab appears."""
+        await self._load_standby()
+        await self._load_placement()
+
     async def _load_standby(self) -> None:
         """Read the speaker's auto-standby (PowerMode) state into the switch."""
         if self.client is None:
@@ -906,6 +985,16 @@ class KlipschRemote:
         if val is not None:
             self.standby_sw.value = bool(val)
             self.standby_sw.update()
+
+    async def _load_placement(self) -> None:
+        """Read the speaker's placement (boundary gain) into the segmented button."""
+        if self.client is None:
+            return
+        placement = await self._guard(self.client.get_placement)
+        if placement is not None:
+            self._reflect_placement(placement_name(placement))
+            self.placement_seg.update()
+            self.placement_hint_text.update()
 
     def _on_toggle_autoconnect(self, e: ft.ControlEvent) -> None:
         cfg = load_config()

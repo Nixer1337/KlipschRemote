@@ -45,6 +45,20 @@ ABOUT_FIELDS: list[tuple[str, str, str]] = [
 ]
 
 
+def _hint_tooltip(message: str) -> ft.Tooltip:
+    """A Material-styled rich tooltip: a rounded secondary-container chip with
+    readable on-container text and comfortable padding, instead of the default
+    terse dark mini-tooltip. Used for the inline help affordances in Settings."""
+    return ft.Tooltip(
+        message=message,
+        decoration=ft.BoxDecoration(
+            bgcolor=ft.Colors.SECONDARY_CONTAINER,
+            border_radius=ft.BorderRadius.all(10)),
+        text_style=ft.TextStyle(size=12, color=ft.Colors.ON_SECONDARY_CONTAINER),
+        padding=ft.Padding.symmetric(vertical=10, horizontal=14),
+        margin=12, wait_duration=200, prefer_below=True)
+
+
 def connect_controls(r: KlipschRemote) -> list[ft.Control]:
     """The connect screen: a top form (paired picker + address) and a fixed
     bottom action bar (Scan · Connect)."""
@@ -356,6 +370,32 @@ def settings_controls(r: KlipschRemote) -> list[ft.Control]:
                 r.sub_section_status],
                spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=ft.Padding.only(left=16, top=16, bottom=4))
+    # Speaker Placement: boundary-gain bass compensation. A Material 3 segmented
+    # button (Corner / Wall / Open) with a per-option hover hint and a live
+    # description line; the info chip beside the title explains what "boundary
+    # gain" is. Maps to CH_BOUNDARY_GAIN — see klipsch_ble.constants.Placement.
+    placement_section_header = ft.Container(
+        ft.Row([ft.Text("Speaker Placement", weight=ft.FontWeight.BOLD, size=14,
+                        color=ft.Colors.ON_SURFACE_VARIANT, expand=True),
+                ft.Container(
+                    ft.Icon(ft.Icons.HELP_OUTLINE, size=18,
+                            color=ft.Colors.ON_SURFACE_VARIANT),
+                    tooltip=_hint_tooltip(
+                        "Speakers near a wall or in a corner get extra bass from "
+                        "the room. This sets how much bass the speaker adds back, "
+                        "so it stays balanced wherever it sits."),
+                    padding=ft.Padding.all(4))],
+               vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=ft.Padding.only(left=16, top=16, bottom=4))
+    placement_card = ft.Card(
+        ft.Container(
+            ft.Column(
+                [ft.Row([r.placement_seg],
+                        alignment=ft.MainAxisAlignment.CENTER),
+                 r.placement_hint_text],
+                spacing=12, tight=True),
+            padding=16),
+        clip_behavior=ft.ClipBehavior.ANTI_ALIAS)
     # Factory Reset — destructive, so it's rendered in the error colour (red
     # icon/label/chevron) and gated behind a Yes/No confirmation dialog,
     # mirroring the original app's Settings > Product entry.
@@ -415,6 +455,7 @@ def settings_controls(r: KlipschRemote) -> list[ft.Control]:
     body = ft.Column(
         [section("General"), general,
          sub_section_header, r.sub_card,
+         placement_section_header, placement_card,
          section("Power Management"), power,
          section("Product"), product,
          section("About this app"), about_app,

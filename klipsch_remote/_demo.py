@@ -59,6 +59,8 @@ def _store() -> dict[str, bytes]:
         c.CH_SUBSTATUS: bytes([1]),                      # subwoofer detected
         c.CH_SUBINVERT: bytes([0]),
         c.CH_SUBMUTE: bytes([0]),
+        c.CH_BOUNDARY_GAIN: bytes([c.Placement.OPEN.value]),  # free-standing
+
         # input service
         c.CH_INPUT: bytes([c.Input.OPTICAL.value]),
         # UI service

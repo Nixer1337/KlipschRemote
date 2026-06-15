@@ -31,6 +31,14 @@
     ["fingerprint", "System ID", "system_id"],
   ];
 
+  // Speaker-placement (boundary-gain) copy: the live line shown under the
+  // selector for the current choice. Mirrors klipsch_remote/app.py _PLACEMENT_HINT.
+  const PLACEMENT_HINT = {
+    corner: "In a corner the room reinforces bass the most — the speaker adds the least.",
+    wall: "Against a wall the room adds some bass — the speaker adds a moderate amount.",
+    open: "Free-standing, away from walls — no room reinforcement, so the speaker adds the most bass.",
+  };
+
   // ---- tiny helpers --------------------------------------------------------
   function toast(msg, isError) {
     const t = els.toast;
@@ -144,6 +152,30 @@
     els.subInvert.checked = !!st.sub_invert;
 
     els.powermode.checked = !!st.power_mode;
+
+    // Speaker placement (boundary gain) isn't part of status() — read it on its
+    // own, like the desktop does when Settings opens.
+    const placement = await guard(() => client.getPlacement(), "Couldn't read placement");
+    if (placement != null) reflectPlacement(K.placementName(placement));
+  }
+
+  // ---- speaker placement (boundary gain) -----------------------------------
+  function reflectPlacement(name) {
+    for (const seg of els.placementSeg.children)
+      seg.classList.toggle("active", seg.dataset.placement === name);
+    els.placementHint.textContent = PLACEMENT_HINT[name] || PLACEMENT_HINT.wall;
+  }
+  async function onPlacement(name) {
+    reflectPlacement(name); // optimistic
+    await guard(() => client.setPlacement(name), "Couldn't set placement");
+  }
+
+  // Mirror the desktop: the header (app-bar title) shows the speaker's NAME,
+  // falling back to the model display name; the Settings "Name" row shows the
+  // name, or — when unset. (Previously the header showed the model, not the name.)
+  function reflectName(name) {
+    els.modelName.textContent = name || (client ? client.modelDisplay : "Klipsch");
+    els.nameValue.textContent = name || "—";
   }
 
   async function loadDeviceInfo() {
@@ -153,7 +185,7 @@
     els.aboutStatus.hidden = true;
     if (!info) return;
     deviceInfo = info;
-    els.nameValue.textContent = info.name || "—";
+    reflectName(info.name);
     els.aboutList.innerHTML = "";
     ABOUT_FIELDS.forEach(([icon, label, key], i) => {
       if (i) els.aboutList.append(hairline());
@@ -282,6 +314,7 @@
       subStatus: $("sub-status"), subCard: $("sub-card"),
       subLevel: $("sub-level"), subLevelVal: $("sub-level-val"),
       subMuteBtn: $("sub-mute-btn"), subInvert: $("sub-invert"),
+      placementSeg: $("placement-seg"), placementHint: $("placement-hint"),
       powermode: $("powermode"),
       aboutRow: $("about-row"), factoryReset: $("factory-reset"),
       // about
@@ -360,6 +393,10 @@
     els.subInvert.addEventListener("change", () =>
       guard(() => client.setSubInvert(els.subInvert.checked), "Couldn't toggle phase invert"));
 
+    // speaker placement (boundary gain) — Material segmented button
+    for (const seg of els.placementSeg.children)
+      seg.addEventListener("click", () => onPlacement(seg.dataset.placement));
+
     // settings rows
     els.renameRow.addEventListener("click", onRename);
     els.powermode.addEventListener("change", () =>
@@ -381,7 +418,7 @@
     const trimmed = name.trim();
     if (!trimmed) return toast("Name can't be empty", true);
     await guard(() => client.setName(trimmed), "Couldn't rename");
-    els.nameValue.textContent = trimmed; // optimistic
+    reflectName(trimmed); // optimistic (header + name row)
     toast("Renamed");
     await loadDeviceInfo(); // re-parse so the Name row + About reflect the speaker
   }

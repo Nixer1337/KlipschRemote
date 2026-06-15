@@ -295,6 +295,47 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 }
 .select:focus { outline: none; border-color: var(--primary); }
 
+/* Help affordance + Material rich tooltip ----------------------------------- */
+.help {
+  position: relative; margin-left: auto; display: inline-flex; align-items: center;
+  color: var(--muted); cursor: help;
+}
+.help .mi { font-size: 18px; }
+.help:hover, .help:focus, .help:focus-visible { color: var(--text); outline: none; }
+.help .tip {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: max-content; max-width: 260px;
+  background: #3b4858; color: #dce6f7;          /* M3 secondary-container / on- */
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 12px; font-weight: 400; line-height: 1.4; text-align: left;
+  white-space: normal; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  opacity: 0; visibility: hidden; transform: translateY(-4px);
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s; z-index: 10;
+}
+.help:hover .tip, .help:focus .tip, .help:focus-visible .tip {
+  opacity: 1; visibility: visible; transform: translateY(0);
+}
+
+/* Speaker placement (Material 3 segmented button) --------------------------- */
+.placement { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.segmented {
+  display: flex; align-self: center; max-width: 100%;
+  border: 1px solid var(--outline); border-radius: 999px; overflow: hidden;
+}
+.segment {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 16px; border: 0; border-right: 1px solid var(--outline);
+  background: transparent; color: var(--text);
+  font: inherit; font-size: 14px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.segment:last-child { border-right: 0; }
+.segment .mi { font-size: 18px; }
+.segment:hover { background: rgba(255, 255, 255, 0.06); }
+.segment.active { background: var(--active-tile); color: var(--primary); }
+.segment.active .mi { color: var(--primary); }
+.placement-hint { font-size: 11px; line-height: 1.4; }
+
 /* Banners / toast / dialog -------------------------------------------------- */
 .banner { border-radius: 12px; padding: 14px 16px; margin: 12px; }
 .banner.inline { margin: 0; }
@@ -327,4 +368,6 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 /* Responsive ---------------------------------------------------------------- */
 @media (max-width: 420px) {
   .input-grid { gap: 6px; }
+  /* Tighten the segments so Corner / Wall / Open still fit on narrow phones. */
+  .segment { padding: 10px 12px; gap: 6px; }
 }

@@ -204,6 +204,32 @@
           </label>
         </div>
 
+        <div class="section-label">Speaker Placement
+          <span class="help" id="placement-help" tabindex="0" role="button"
+                aria-label="What is speaker placement?">
+            <span class="mi">help</span>
+            <span class="tip" role="tooltip">Speakers near a wall or in a corner get
+              extra bass from the room. This sets how much bass the speaker adds back,
+              so it stays balanced wherever it sits.</span>
+          </span>
+        </div>
+        <div class="group">
+          <div class="placement">
+            <div class="segmented" id="placement-seg" role="group" aria-label="Speaker placement">
+              <button class="segment" data-placement="corner" title="In a corner — least added bass">
+                <span class="mi">rounded_corner</span><span>Corner</span>
+              </button>
+              <button class="segment" data-placement="wall" title="Against a wall — balanced bass">
+                <span class="mi">crop_square</span><span>Wall</span>
+              </button>
+              <button class="segment" data-placement="open" title="Free-standing — most added bass">
+                <span class="mi">open_in_full</span><span>Open</span>
+              </button>
+            </div>
+            <div class="placement-hint muted" id="placement-hint"></div>
+          </div>
+        </div>
+
         <div class="section-label">Power Management</div>
         <div class="group">
           <label class="list-item">

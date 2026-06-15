@@ -53,7 +53,7 @@ FEATURES: frozenset[str] = frozenset({
     "volume", "mute", "input", "bass", "mid", "treble",
     "night", "vocal", "dynamic_bass", "submute", "subinvert", "sub_level",
     "eqmode", "name", "play_pause", "next", "prev", "func_sounds",
-    "factory_reset",
+    "factory_reset", "placement",
 })
 
 # The physical inputs available on the Fives/Sevens/Nines (identity byte map).

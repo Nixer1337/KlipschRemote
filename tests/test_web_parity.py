@@ -167,6 +167,32 @@ def test_input_aliases_match():
     )
 
 
+# ---- speaker placement / boundary gain --------------------------------------
+def test_placement_enum_matches():
+    body = _object_body("Placement")
+    js = {name: int(v) for name, v in re.findall(r"(\w+)\s*:\s*(\d+)", body)}
+    py = {member.name: member.value for member in c.Placement}
+    assert js == py, "Placement enum differs between klipsch.js and constants.py"
+
+
+def test_placement_names_match():
+    body = _object_body("PLACEMENT_NAMES")
+    js = {int(v): name for v, name in re.findall(r'(\d+)\s*:\s*"(\w+)"', body)}
+    py = {member.value: name for member, name in c.PLACEMENT_NAMES.items()}
+    assert js == py, "PLACEMENT_NAMES differs between klipsch.js and constants.py"
+
+
+def test_placement_aliases_match():
+    body = _object_body("PLACEMENT_ALIASES")
+    js = {alias: int(v) for alias, v in re.findall(r"(\w+)\s*:\s*(\d+)", body)}
+    py = {alias: member.value for alias, member in c.PLACEMENT_ALIASES.items()}
+    assert js == py, "PLACEMENT_ALIASES differs between klipsch.js and constants.py"
+
+
+def test_placement_default_matches():
+    assert _js_number("PLACEMENT_DEFAULT") == int(c.PLACEMENT_DEFAULT)
+
+
 # ---- model identification ---------------------------------------------------
 def test_model_by_number_matches():
     body = _object_body("MODEL_BY_NUMBER")
