@@ -16,6 +16,7 @@ breakage is the point: it forces a human to re-confirm the two stayed in sync.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -24,7 +25,9 @@ import pytest
 from klipsch_ble import constants as c
 from klipsch_ble import models as m
 
-WEB_JS = Path(__file__).resolve().parent.parent / "web" / "klipsch.js"
+ROOT = Path(__file__).resolve().parent.parent
+WEB_JS = ROOT / "web" / "klipsch.js"
+THEME_PY = ROOT / "klipsch_remote" / "theme.py"
 SRC = WEB_JS.read_text(encoding="utf-8")
 
 
@@ -211,3 +214,33 @@ def test_conversion_formula_structure(func, must_contain):
             f"{func} in klipsch.js no longer contains `{token}` — its formula may "
             f"have drifted from constants.py; re-verify the conversion by hand"
         )
+
+
+# ---- EQ presets: web vs desktop ---------------------------------------------
+# The web remote reproduces the desktop app's EQ presets (klipsch_remote/theme.py).
+# theme.py imports Flet, so read its values via AST instead of importing it — that
+# keeps this test runnable in the Flet-free pytest CI.
+def _theme_eq_presets() -> dict[str, tuple[int, ...]]:
+    tree = ast.parse(THEME_PY.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        # theme.py uses an annotated assignment: `EQ_PRESETS: dict[...] = {...}`.
+        if isinstance(node, ast.AnnAssign):
+            target = node.target
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+        else:
+            continue
+        if isinstance(target, ast.Name) and target.id == "EQ_PRESETS" and node.value:
+            return {k: tuple(v) for k, v in ast.literal_eval(node.value).items()}
+    raise AssertionError("EQ_PRESETS not found in theme.py")
+
+
+def test_eq_presets_match_desktop():
+    body = _object_body("EQ_PRESETS")
+    js = {
+        name: tuple(int(v) for v in vals.split(","))
+        for name, vals in re.findall(r"(\w+)\s*:\s*\[([-\d,\s]+)\]", body)
+    }
+    assert js == _theme_eq_presets(), (
+        "EQ presets differ between klipsch.js and klipsch_remote/theme.py"
+    )

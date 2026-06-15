@@ -1,7 +1,8 @@
 name: tests
 
 # Runs the dependency-free pytest suite. bleak is imported lazily inside the
-# library, so the tests need nothing but pytest to run.
+# library, so the core tests need nothing but pytest. The Flet-dependent GUI
+# tests skip here (importorskip) and run in the separate gui-tests job below.
 on:
   push:
     branches: [main]
@@ -22,6 +23,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install pytest
       - run: python -m pytest
+
+  # GUI behaviour tests (Flet widgets + preset matching). Isolated from the lean
+  # core job so installing Flet can't slow or destabilise it. No display is
+  # needed — widgets are built with update=False, never rendered.
+  gui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest flet==0.85.3
+      - run: python -m pytest tests/test_gui_logic.py
 
   # Static checks: ruff (lint) + mypy (types on the core library). Config lives
   # in pyproject.toml. Kept dependency-light like the test job — mypy treats the
