@@ -7,7 +7,6 @@
 **Control your Klipsch powered speakers from your computer — over Bluetooth LE.**
 The Fives · The Sevens · The Nines (incl. McLaren) · Windows · Linux · macOS · Web
 
-[![tests](https://badgen.net/github/checks/Nixer1337/KlipschRemote/main?label=tests)](https://github.com/Nixer1337/KlipschRemote/actions/workflows/tests.yml)
 [![release](https://badgen.net/github/tag/Nixer1337/KlipschRemote?label=release&color=green&icon=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0iI2ZmZiI%2BPHBhdGggZD0iTTEgMi43NUExLjc1IDEuNzUgMCAwIDEgMi43NSAxaDQuNTg2Yy40NjQgMCAuOTA5LjE4NCAxLjIzNy41MTNsNi4yNSA2LjI1YTEuNzUgMS43NSAwIDAgMSAwIDIuNDc0bC00LjU4NiA0LjU4NmExLjc1IDEuNzUgMCAwIDEtMi40NzQgMGwtNi4yNS02LjI1QTEuNzUgMS43NSAwIDAgMSAxIDcuMzM2VjIuNzVaTTQuNSA1LjVhMSAxIDAgMSAwIDAtMiAxIDEgMCAwIDAgMCAyWiIvPjwvc3ZnPg%3D%3D)](https://github.com/Nixer1337/KlipschRemote/releases/latest)
 [![license](https://badgen.net/github/license/Nixer1337/KlipschRemote?color=blue)](LICENSE)
 ![python](https://badgen.net/badge/python/3.9+/blue)
