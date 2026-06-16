@@ -24,6 +24,10 @@ except ImportError:  # pragma: no cover - exercised only where pystray is absent
 # installed — elsewhere the setting is hidden and the window's X always quits.
 TRAY_SUPPORTED = sys.platform == "win32" and pystray is not None
 
+# Default for a fresh install: close-to-tray on (preserves the original
+# always-on-tray behaviour). Used when no close_to_tray choice is saved yet.
+TRAY_DEFAULT = True
+
 # How long to wait for the shell's notification area before giving up. A login
 # autostart can start before the taskbar exists; Shell_NotifyIcon(NIM_ADD) then
 # fails SILENTLY (pystray's wrapper has no errcheck — it just returns FALSE and

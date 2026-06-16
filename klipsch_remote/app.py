@@ -25,13 +25,13 @@ import math
 import os
 import sys
 import webbrowser
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 import flet as ft
 
 from klipsch_ble import (
-    KlipschAccessError,
     KlipschClient,
-    KlipschNotFoundError,
     discover,
     placement_name,
 )
@@ -47,30 +47,23 @@ from klipsch_ble.constants import (
     CH_NIGHT,
     CH_POWERMODE,
     CH_SUBINVERT,
-    EQ_MAX,
-    EQ_MIN,
-    MAX_VOLUME_RAW,
-    SUB_DB_MAX,
-    SUB_DB_MIN,
 )
 
-from . import autostart, screens, viewstate
+from . import autostart, controls, screens, viewstate
+from .lifecycle import TrayLifecycle
 from .single_instance import SingleInstance, bring_to_front
 from .theme import (
     CUSTOM,
     EQ_PRESETS,
     INPUT_KEYS,
-    INPUTS,
     OUTLINE,
     SEED,
-    TRANSPORT,
     build_theme,
 )
-from .tray import TRAY_SUPPORTED, start_tray
-from .widgets import VSlider
 
-# Default for a fresh install (preserves the original always-on-tray behaviour).
-_TRAY_DEFAULT = True
+# Return type of a BLE op handed to ``_guard`` (which runs it against the
+# guaranteed-non-None client and returns its result, or None on failure/no client).
+T = TypeVar("T")
 
 # Screenshot / demo mode (off for every normal launch). KLIPSCH_DEMO swaps the
 # BLE transport for an in-memory fake (see _demo.py); KLIPSCH_SHOT additionally
@@ -125,258 +118,22 @@ class KlipschRemote:
         self.lock = asyncio.Lock()
         self._mounted = False        # first screen mounts without a transition
         self._sub_detected: bool | None = None  # cached: drives the sub group state
-        # System-tray state. `_tray` is the running pystray.Icon when close-to-
-        # tray is active (its presence is what makes the window's X hide instead
-        # of quit); `_loop` is captured so the tray's off-thread menu callbacks
-        # can hop back onto the Flet event loop.
-        self._tray = None  # the running pystray.Icon (from tray.start_tray) or None
-        self._loop: asyncio.AbstractEventLoop | None = None
+        # Window + system-tray lifecycle (close-to-tray, the off-thread menu
+        # callbacks, the real-quit path) lives in its own helper; on quit it runs
+        # _teardown_ble first to drop the BLE link cleanly.
+        self.tray = TrayLifecycle(
+            page, cleanup=self._teardown_ble, icon_path=_icon_path())
         self._build_controls()
 
     # ------------------------------------------------------------------ setup
     def _build_controls(self) -> None:
         """Create every control once; later screens just (re)attach them."""
-        # --- connect screen ---
-        self.paired_dd = ft.Dropdown(
-            label="Paired speakers", options=[], expand=True,
-            on_select=self._on_pick_paired,
-            border_color=OUTLINE, focused_border_color=SEED,
-        )
+        controls.build_controls(self)
         # In demo mode show a fake address so screenshots never expose the real
-        # saved MAC (the connect screen also re-fills this from the fake list).
+        # saved MAC (the connect screen also re-fills it from the fake list).
         if _DEMO:
             from . import _demo
-            _saved_addr = _demo.DEMO_DISPLAY_ADDRESS
-        else:
-            _saved_addr = load_saved_address()
-        self.address_tf = ft.TextField(
-            label="Address (MAC, or CoreBluetooth UUID on macOS)",
-            value=_saved_addr or "", expand=True,
-            border_color=OUTLINE, focused_border_color=SEED,
-        )
-        # Bottom action bar: secondary (Scan) leading, primary (Connect, filled)
-        # trailing — Material's button order. Both expand to share the width.
-        self.connect_btn = ft.FilledButton(
-            "Connect", icon=ft.Icons.LINK, on_click=self._on_connect,
-            expand=True, height=46,
-        )
-        self.scan_btn = ft.OutlinedButton(
-            "Scan the air", icon=ft.Icons.BLUETOOTH_SEARCHING, on_click=self._on_scan,
-            expand=True, height=46,
-            tooltip="Put the speaker in pairing mode first — hold its Bluetooth "
-                    "button until it blinks — then scan, otherwise it won't "
-                    "advertise over BLE.",
-        )
-        self.refresh_paired_btn = ft.IconButton(
-            ft.Icons.REFRESH, tooltip="Re-enumerate paired speakers",
-            on_click=self._on_load_paired,
-        )
-        self.conn_status = ft.Text("", color=ft.Colors.ON_SURFACE_VARIANT)
-        self.conn_progress = ft.ProgressRing(visible=False, width=18, height=18)
-        # Shown on the dedicated "Connecting…" screen during the connect+read flow.
-        self.connecting_status = ft.Text(
-            "", color=ft.Colors.ON_SURFACE_VARIANT,
-            text_align=ft.TextAlign.CENTER)
-
-        # --- remote screen header (the speaker's applied name) ---
-        self.model_text = ft.Text(
-            "Klipsch", size=22, weight=ft.FontWeight.BOLD)
-
-        # --- volume + mute ---
-        # The speaker icon doubles as the mute toggle: plain when live, red and
-        # crossed-out (VOLUME_OFF) when muted.
-        self._muted = False
-        self.mute_btn = ft.IconButton(
-            ft.Icons.VOLUME_UP, tooltip="Mute / unmute", on_click=self._on_mute)
-        self.vol_slider = ft.Slider(
-            min=0, max=MAX_VOLUME_RAW, divisions=MAX_VOLUME_RAW, value=0,
-            label="{value}", expand=True,
-            on_change_end=self._on_vol_commit,
-        )
-
-        # --- input selector: a 3x2 grid of selectable tiles ---
-        # Each tile is the Flutter-recommended Material layering: a Stack of
-        #   (1) the selection fill  — bottom, full-bleed, cross-fades on select;
-        #   (2) the icon+label      — middle, defines the tile's intrinsic size;
-        #   (3) the ink/click layer — top, full-bleed, transparent.
-        # Because the fill (1) and the ink surface (3) are both Positioned.fill,
-        # the hover/press state-layer is exactly the same size & shape as the
-        # selection — no inset, no "cheap" small highlight.
-        self.input_tiles: dict[str, ft.Control] = {}
-        self._tile_fill: dict[str, ft.Container] = {}
-        self._tile_icon: dict[str, ft.Icon] = {}
-        self._tile_label: dict[str, ft.Text] = {}
-        RADIUS = 14
-        for key, label, icon in INPUTS:
-            self._tile_icon[key] = ft.Icon(icon, size=26)
-            self._tile_label[key] = ft.Text(label, size=12)
-            self._tile_fill[key] = ft.Container(
-                left=0, top=0, right=0, bottom=0, border_radius=RADIUS,
-                # The selection state-layer cross-fades in/out (Material standard
-                # short ~150 ms transition) instead of snapping.
-                animate=ft.Animation(150, ft.AnimationCurve.EASE_IN_OUT))
-            content = ft.Container(
-                ft.Column([self._tile_icon[key], self._tile_label[key]],
-                          spacing=6, tight=True,
-                          horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                padding=ft.Padding.symmetric(vertical=12, horizontal=8),
-                alignment=ft.Alignment.CENTER)
-            interactive = ft.Container(
-                left=0, top=0, right=0, bottom=0, border_radius=RADIUS,
-                ink=True, data=key, on_click=self._on_input)
-            self.input_tiles[key] = ft.Container(
-                ft.Stack([self._tile_fill[key], content, interactive]),
-                border_radius=RADIUS, clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                expand=True)
-        self._selected_input = "tv"
-
-        # --- EQ: vertical sliders + a UI preset picker + reset-to-flat ---
-        self.eq_sliders: dict[str, VSlider] = {}
-        for ch in ("bass", "mid", "treble"):
-            self.eq_sliders[ch] = VSlider(
-                lo=EQ_MIN, hi=EQ_MAX, height=190,
-                on_commit=lambda v, ch=ch: self._eq_user_commit(ch, v),
-            )
-        self.eq_preset_dd = ft.Dropdown(
-            value="Flat", expand=True,
-            options=([ft.DropdownOption(key=CUSTOM, text=CUSTOM)]
-                     + [ft.DropdownOption(key=n, text=n) for n in EQ_PRESETS]),
-            on_select=self._on_eq_preset,
-            border_color=OUTLINE, focused_border_color=SEED,
-        )
-        self.eq_reset_btn = ft.IconButton(
-            ft.Icons.REFRESH, tooltip="Reset EQ to flat", on_click=self._on_eq_reset)
-
-        # --- subwoofer: a level slider (dB) + phase-invert / mute toggles ---
-        # Sub Level is written as a channel-volume command; the speaker reports
-        # it back via SubStatus, so the slider reflects the real value on load.
-        self.sub_level_slider = ft.Slider(
-            min=SUB_DB_MIN, max=SUB_DB_MAX, divisions=SUB_DB_MAX - SUB_DB_MIN,
-            value=0, label="{value} dB", expand=True,
-            on_change_end=self._on_sub_level_commit,
-        )
-        self.subinvert_sw = ft.Switch(value=False, data="subinvert",
-                                      on_change=self._on_sub_toggle)
-        # Sub Mute mirrors the Volume card's mute control: the speaker icon to the
-        # left of the level slider doubles as the toggle — plain when live, red
-        # and crossed-out (VOLUME_OFF) when muted — instead of a separate switch.
-        self._sub_muted = False
-        self.sub_mute_btn = ft.IconButton(
-            ft.Icons.VOLUME_UP, tooltip="Mute / unmute the subwoofer",
-            on_click=self._on_sub_mute)
-        # Detection state, shown next to the "Subwoofer" section title (not as a
-        # cheap line in the card body): empty when a sub is present, "Not detected"
-        # otherwise — the label that explains why the group below is greyed out.
-        self.sub_section_status = ft.Text(
-            "", size=12, italic=True, color=ft.Colors.ON_SURFACE_VARIANT)
-        # The current sub level in dB, shown trailing on the "Sub Level" row.
-        self.sub_level_value_text = ft.Text(
-            "0 dB", color=ft.Colors.ON_SURFACE_VARIANT)
-
-        # --- speaker placement (boundary gain) — Settings ---
-        # A Material 3 segmented button: one mutually-exclusive choice of where
-        # the speaker sits, which sets how much bass it adds back (CH_BOUNDARY_
-        # GAIN). Segment values are the placement names (corner/wall/open) so
-        # they pass straight to client.set_placement. WALL is the speaker's
-        # default until the real value is read on open (_load_placement).
-        # NB: `selected` MUST be a list, not a set — Flet msgpack-serializes the
-        # control tree and a set raises "can not serialize 'set' object".
-        self._placement = "wall"
-        self.placement_seg = ft.SegmentedButton(
-            allow_multiple_selection=False, allow_empty_selection=False,
-            show_selected_icon=False, selected=["wall"],
-            on_change=self._on_placement,
-            segments=[
-                ft.Segment(value="corner", label=ft.Text("Corner"),
-                           icon=ft.Icon(ft.Icons.ROUNDED_CORNER),
-                           tooltip="In a corner — least added bass"),
-                ft.Segment(value="wall", label=ft.Text("Wall"),
-                           icon=ft.Icon(ft.Icons.CROP_SQUARE),
-                           tooltip="Against a wall — balanced bass"),
-                ft.Segment(value="open", label=ft.Text("Open"),
-                           icon=ft.Icon(ft.Icons.OPEN_IN_FULL),
-                           tooltip="Free-standing — most added bass"),
-            ])
-        # Live description of the current choice, under the selector.
-        self.placement_hint_text = ft.Text(
-            viewstate.placement_hint("wall"), size=11,
-            color=ft.Colors.ON_SURFACE_VARIANT)
-
-        # --- modes (Audio Adjustments collapsible) ---
-        self.dynbass_sw = ft.Switch(value=False, data="dynamic_bass",
-                                    on_change=self._on_toggle)
-        self.night_sw = ft.Switch(value=False, data="night",
-                                  on_change=self._on_toggle)
-        self._adj_open = False
-        # A single chevron that rotates 180° on expand (Material expansion motion)
-        # rather than swapping the glyph.
-        self.adj_chevron = ft.Icon(
-            ft.Icons.KEYBOARD_ARROW_DOWN, rotate=ft.Rotate(0.0),
-            animate_rotation=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT))
-
-        # --- transport ---
-        # A single, STATELESS play/pause control. The speaker doesn't reliably
-        # report transport state, so there's no play-vs-pause icon to keep in
-        # sync — every press just fires the toggle command. The combined ⏯ symbol
-        # is built from two monochrome Material glyphs (play triangle + pause
-        # bars) rather than the U+23EF character, which renders as a colour emoji
-        # on Windows. Circular ink button to match the IconButtons around it.
-        # One shared colour for the whole transport row so play/pause and the
-        # prev/next IconButtons match (IconButton otherwise defaults to the
-        # greyer on-surface-variant, while a bare Icon defaults to on-surface).
-        self.play_btn = ft.Container(
-            ft.Row([ft.Icon(ft.Icons.PLAY_ARROW, size=26, color=TRANSPORT),
-                    ft.Icon(ft.Icons.PAUSE, size=23, color=TRANSPORT)],
-                   spacing=0, tight=True,
-                   alignment=ft.MainAxisAlignment.CENTER,
-                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            width=68, height=56, border_radius=28, ink=True,
-            alignment=ft.Alignment.CENTER, on_click=self._on_playpause,
-            tooltip="Play / pause",
-        )
-        self.prev_btn = ft.IconButton(ft.Icons.SKIP_PREVIOUS, tooltip="Previous",
-                                      icon_size=30, icon_color=TRANSPORT,
-                                      on_click=self._on_prev)
-        self.next_btn = ft.IconButton(ft.Icons.SKIP_NEXT, tooltip="Next",
-                                      icon_size=30, icon_color=TRANSPORT,
-                                      on_click=self._on_next)
-
-        # --- settings ---
-        # The current speaker name, shown trailing on the Settings > Name row.
-        self.name_value_text = ft.Text(
-            "", italic=True, color=ft.Colors.ON_SURFACE_VARIANT)
-        # App-level: reconnect to the saved speaker automatically on next launch.
-        self.autoconnect_sw = ft.Switch(
-            value=bool(load_config().get("auto_connect", False)),
-            on_change=self._on_toggle_autoconnect)
-        # App-level (Windows only): close-to-tray. When on, the window's X hides
-        # the app to the system tray (reveal / Quit from the tray icon); when
-        # off, there's no tray icon and the X quits. The row is only shown on a
-        # tray-capable platform (see show_settings); the value is forced False
-        # elsewhere so the close handler always takes the plain-quit path.
-        self.close_to_tray_sw = ft.Switch(
-            value=TRAY_SUPPORTED and bool(
-                load_config().get("close_to_tray", _TRAY_DEFAULT)),
-            on_change=self._on_toggle_close_to_tray)
-        # App-level: launch on system startup. The OS registration is the source
-        # of truth (no config key) — read it back so the switch always matches
-        # the real state, even if it was changed outside the app.
-        self.autostart_sw = ft.Switch(
-            value=autostart.is_supported() and autostart.is_enabled(),
-            on_change=self._on_toggle_autostart)
-        # Speaker-level: auto-standby (sleep after inactivity) — PowerMode char.
-        self.standby_sw = ft.Switch(value=True, on_change=self._on_toggle_standby)
-
-        # --- About page: one bound value Text per read-only DIS field. Filled
-        # from a device_info() read when the page opens; "—" until then. ---
-        self.about_values = {
-            label: ft.Text("—", selectable=True,
-                           color=ft.Colors.ON_SURFACE_VARIANT)
-            for _icon, label, _attr in screens.ABOUT_FIELDS
-        }
-        self.about_status = ft.Text(
-            "Reading device information…", size=12,
-            color=ft.Colors.ON_SURFACE_VARIANT)
+            self.address_tf.value = _demo.DEMO_DISPLAY_ADDRESS
 
     # ----------------------------------------------------------------- screens
     # Screen transitions use a native Flutter AnimatedSwitcher (Material
@@ -491,12 +248,14 @@ class KlipschRemote:
             bgcolor=ft.Colors.ERROR if error else None,
         ))
 
-    async def _guard(self, make_coro) -> object | None:
+    async def _guard(self, op: Callable[[KlipschClient], Awaitable[T]]) -> T | None:
         """Serialize one BLE op on the client; surface failures as a snackbar.
 
-        ``make_coro`` is a zero-arg callable that builds the coroutine *inside*
-        the lock — so ``self.client`` is dereferenced only after the None-check.
-        A tap that races a disconnect then simply no-ops instead of raising
+        ``op`` is called with the live client *inside* the lock, and only after
+        the None-check — so the client it receives is guaranteed non-None (the
+        type reflects this: handlers write ``lambda c: c.set_mute(...)`` rather
+        than dereferencing the optional ``self.client``). A tap that races a
+        disconnect simply no-ops, returning ``None``, instead of raising
         ``AttributeError`` on a torn-down client.
 
         Optimistic UI, by design: the control handlers mirror each change into
@@ -508,11 +267,12 @@ class KlipschRemote:
         surfaced but left in place; the value reconciles on the next connect,
         which re-reads the full state.
         """
-        if self.client is None:
+        client = self.client
+        if client is None:
             return None
         async with self.lock:
             try:
-                return await make_coro()
+                return await op(client)
             except Exception as exc:  # any BLE/GATT failure is user-facing
                 self.snack(f"{type(exc).__name__}: {exc}", error=True)
                 return None
@@ -572,13 +332,12 @@ class KlipschRemote:
         # Keep the picker in sync with the address field: preselect the saved /
         # typed speaker if it's among the paired devices (so after auto-connect
         # the right device shows selected), else auto-pick a lone device.
-        typed = (self.address_tf.value or "").strip().upper()
-        match = next((d for d in devices if d.address.upper() == typed), None)
-        if match:
-            self.paired_dd.value = match.address
-        elif len(devices) == 1:
-            self.paired_dd.value = devices[0].address
-            self.address_tf.value = devices[0].address
+        pick = viewstate.pick_paired_device(
+            [d.address for d in devices], self.address_tf.value or "")
+        if pick.select is not None:
+            self.paired_dd.value = pick.select
+        if pick.autofill is not None:
+            self.address_tf.value = pick.autofill
         if not preserve_status:
             self.conn_status.value = (
                 f"{len(devices)} paired Bluetooth device(s) found." if devices
@@ -634,13 +393,7 @@ class KlipschRemote:
                     self.page.update()
                     await asyncio.sleep(1.2)
         if last_exc is not None:
-            if isinstance(last_exc, KlipschAccessError):
-                self._connect_failed("No control access — pair the speaker as an "
-                                     "AUDIO device (not 'Other'/LE). Never unpair.")
-            elif isinstance(last_exc, KlipschNotFoundError):
-                self._connect_failed(str(last_exc))
-            else:
-                self._connect_failed(f"{type(last_exc).__name__}: {last_exc}")
+            self._connect_failed(viewstate.connect_error_message(last_exc))
             return
         self.client = client
         if not _DEMO:
@@ -716,34 +469,38 @@ class KlipschRemote:
         c = self.client
         if c is None:
             return
-        st = await self._guard(c.status)
+        st = await self._guard(lambda c: c.status())
         if st is None:
             return
-        name = (await self._guard(c.get_name)) or c.model.display_name
-        self.model_text.value = name
-        self.name_value_text.value = name
+        raw_name = await self._guard(lambda c: c.get_name())
+        # Every per-field decision (name fallback, input / EQ guards, bool
+        # coercions) lives in viewstate.reconcile, which is unit-tested; here we
+        # only apply the result to the controls.
+        view = viewstate.reconcile(st, raw_name, c.model.display_name, INPUT_KEYS)
+        self.model_text.value = view.name
+        self.name_value_text.value = view.name
         # Device info is immutable for this connection — read it once (here, with
         # the rest of the state) and cache it so the About page opens instantly.
         if self._device_info is None:
-            self._device_info = await self._guard(c.device_info)
-        self.vol_slider.value = st.volume_raw
-        self._reflect_mute(bool(st.mute))
-        if st.input in INPUT_KEYS:
-            self._reflect_input(st.input)
-        if None not in (st.bass, st.mid, st.treble):
-            self._reflect_eq(st.bass, st.mid, st.treble)
-        self.night_sw.value = bool(st.night)
-        self.dynbass_sw.value = bool(st.dynamic_bass)
+            self._device_info = await self._guard(lambda c: c.device_info())
+        self.vol_slider.value = view.volume_raw
+        self._reflect_mute(view.mute)
+        if view.input is not None:
+            self._reflect_input(view.input)
+        if view.eq is not None:
+            self._reflect_eq(*view.eq)
+        self.night_sw.value = view.night
+        self.dynbass_sw.value = view.dynamic_bass
         # Subwoofer lives on the Settings screen, but its state comes from this
         # one connect-time status read — NOT a separate BLE read each time
         # Settings opens. We reflect it into the
         # (persistent) sub controls here and cache detection; show_settings then
         # just applies the cached state to the freshly-built card, so opening the
         # tab is instant and doesn't visibly re-run detection.
-        self._reflect_sub_detected(st.sub_detected)
-        self._reflect_sub_level(st.sub_level_db)
-        self.subinvert_sw.value = bool(st.sub_invert)
-        self._reflect_sub_mute(bool(st.sub_mute))
+        self._reflect_sub_detected(view.sub_detected)
+        self._reflect_sub_level(view.sub_level_db)
+        self.subinvert_sw.value = view.sub_invert
+        self._reflect_sub_mute(view.sub_mute)
         # Transport is stateless (single ⏯ command button), so there is nothing
         # to read or reflect here.
         self.page.update()
@@ -780,7 +537,7 @@ class KlipschRemote:
 
     async def _disconnect(self) -> None:
         if self.client is not None:
-            await self._guard(lambda: self.client.disconnect())
+            await self._guard(lambda c: c.disconnect())
             self.client = None
         self._device_info = None
         self.show_connect()
@@ -791,14 +548,14 @@ class KlipschRemote:
     # ---------------------------------------------------------------- handlers
     async def _vol_commit(self, raw: int) -> None:
         # The slider writes only on change-end, so dragging doesn't flood the link.
-        await self._guard(lambda: self.client.set_volume_raw(raw))
+        await self._guard(lambda c: c.set_volume_raw(raw))
 
     def _on_vol_commit(self, e: ft.ControlEvent) -> None:
         self.page.run_task(self._vol_commit, int(e.control.value))
 
     async def _mute(self) -> None:
         new = not self._muted
-        await self._guard(lambda: self.client.set_mute(new))
+        await self._guard(lambda c: c.set_mute(new))
         self._reflect_mute(new)
         self.mute_btn.update()
 
@@ -806,7 +563,7 @@ class KlipschRemote:
         self.page.run_task(self._mute)
 
     async def _input(self, name: str) -> None:
-        await self._guard(lambda: self.client.set_input(name))
+        await self._guard(lambda c: c.set_input(name))
         self._reflect_input(name)
         self.page.update()
 
@@ -816,7 +573,7 @@ class KlipschRemote:
             self.page.run_task(self._input, e.control.data)
 
     async def _eq_commit(self, ch: str, level: int) -> None:
-        await self._guard(lambda: self.client.set_eq(ch, level))
+        await self._guard(lambda c: c.set_eq(ch, level))
 
     def _eq_user_commit(self, ch: str, level: int) -> None:
         # Called by a VSlider on tap / drag-end. A manual move makes the preset
@@ -829,7 +586,7 @@ class KlipschRemote:
     async def _apply_eq(self, bass: int, mid: int, treble: int) -> None:
         """Set all three bands on the speaker, then mirror them in the UI."""
         for ch, val in (("bass", bass), ("mid", mid), ("treble", treble)):
-            await self._guard(lambda c=ch, v=val: self.client.set_eq(c, v))
+            await self._guard(lambda c, ch=ch, val=val: c.set_eq(ch, val))
         self._reflect_eq(bass, mid, treble)
         self.page.update()
 
@@ -844,7 +601,7 @@ class KlipschRemote:
     async def _toggle(self, name: str, on: bool) -> None:
         # Each mode maps straight to a characteristic toggle (0/1).
         char = {"night": CH_NIGHT, "dynamic_bass": CH_DYNBASS}[name]
-        await self._guard(lambda: self.client.set_toggle(char, on))
+        await self._guard(lambda c: c.set_toggle(char, on))
 
     def _on_toggle(self, e: ft.ControlEvent) -> None:
         self.page.run_task(self._toggle, e.control.data, bool(e.control.value))
@@ -875,7 +632,7 @@ class KlipschRemote:
 
     async def _sub_level_commit(self, db: int) -> None:
         # Slider writes only on change-end, so dragging doesn't flood the link.
-        await self._guard(lambda: self.client.set_sub_level_db(db))
+        await self._guard(lambda c: c.set_sub_level_db(db))
         self.sub_level_value_text.value = viewstate.format_db(db)
         self.sub_level_value_text.update()
 
@@ -884,7 +641,7 @@ class KlipschRemote:
 
     async def _sub_toggle(self, name: str, on: bool) -> None:
         char = {"subinvert": CH_SUBINVERT}[name]
-        await self._guard(lambda: self.client.set_toggle(char, on))
+        await self._guard(lambda c: c.set_toggle(char, on))
 
     def _on_sub_toggle(self, e: ft.ControlEvent) -> None:
         self.page.run_task(self._sub_toggle, e.control.data, bool(e.control.value))
@@ -897,7 +654,7 @@ class KlipschRemote:
 
     async def _sub_mute(self) -> None:
         new = not self._sub_muted
-        await self._guard(lambda: self.client.set_sub_mute(new))
+        await self._guard(lambda c: c.set_sub_mute(new))
         self._reflect_sub_mute(new)
         self.sub_mute_btn.update()
 
@@ -920,7 +677,7 @@ class KlipschRemote:
         # name attribute (self._placement), which would shadow a same-named
         # method and make run_task receive a string ("handler must be a
         # coroutine function").
-        await self._guard(lambda: self.client.set_placement(name))
+        await self._guard(lambda c: c.set_placement(name))
         self._reflect_placement(name)
         self.page.update()
 
@@ -991,7 +748,7 @@ class KlipschRemote:
         speaker's Device Information, cache it, and fill the open About page."""
         if self.client is None:
             return
-        di = await self._guard(self.client.device_info)
+        di = await self._guard(lambda c: c.device_info())
         if di is None:
             self.about_status.value = "Couldn't read device information."
             self.about_status.update()
@@ -1013,7 +770,7 @@ class KlipschRemote:
         """Read the speaker's auto-standby (PowerMode) state into the switch."""
         if self.client is None:
             return
-        val = await self._guard(lambda: self.client.get_toggle(CH_POWERMODE))
+        val = await self._guard(lambda c: c.get_toggle(CH_POWERMODE))
         if val is not None:
             self.standby_sw.value = bool(val)
             self.standby_sw.update()
@@ -1022,7 +779,7 @@ class KlipschRemote:
         """Read the speaker's placement (boundary gain) into the segmented button."""
         if self.client is None:
             return
-        placement = await self._guard(self.client.get_placement)
+        placement = await self._guard(lambda c: c.get_placement())
         if placement is not None:
             self._reflect_placement(placement_name(placement))
             self.placement_seg.update()
@@ -1044,44 +801,13 @@ class KlipschRemote:
             self.snack(f"Couldn't update startup setting: {exc}", error=True)
 
     # ------------------------------------------------------------- system tray
-    def _ensure_tray(self, *, on_ready=None, on_fail=None) -> None:
-        """Start the tray icon if it isn't already running (no-op otherwise).
+    async def _teardown_ble(self) -> None:
+        """Drop the BLE link cleanly before exit (run by ``TrayLifecycle.quit``).
 
-        ``on_ready`` / ``on_fail`` (fired from the tray's worker thread) report
-        whether the icon actually registered, so a silent autostart can fall
-        back to showing the window instead of staying hidden with no icon.
-        """
-        if self._tray is not None or not TRAY_SUPPORTED:
-            if on_fail:
-                on_fail()
-            return
-        # Captured here (on the Flet event loop) so the tray's off-thread menu
-        # callbacks can marshal back onto it.
-        self._loop = asyncio.get_running_loop()
-        self._tray = start_tray(
-            icon_path=_icon_path(),
-            on_show=lambda: self._loop.call_soon_threadsafe(
-                self.page.run_task, bring_to_front, self.page),
-            on_quit=lambda: self._loop.call_soon_threadsafe(
-                self.page.run_task, self._quit),
-            on_ready=on_ready,
-            on_fail=on_fail,
-        )
-
-    def _remove_tray(self) -> None:
-        """Stop and clear the tray icon (with it gone, the X quits the app)."""
-        if self._tray is not None:
-            self._tray.stop()
-            self._tray = None
-
-    async def _quit(self) -> None:
-        """The single real-exit path (window X without a tray, or tray Quit).
-
-        Tear the BLE link down cleanly first — without the explicit disconnect
-        the process just dies and Windows takes a couple of seconds to release
-        the GATT link, so a quick relaunch hits a speaker that's still
-        "connected" to the dead session and the reconnect fails (transient
-        access error). Bounded by a short timeout so quitting never hangs on a
+        Without the explicit disconnect the process just dies and Windows takes a
+        couple of seconds to release the GATT link, so a quick relaunch hits a
+        speaker that's still "connected" to the dead session and the reconnect
+        fails (transient access error). Bounded so quitting never hangs on a
         slow/stuck disconnect.
         """
         if self.client is not None:
@@ -1089,18 +815,6 @@ class KlipschRemote:
                 await asyncio.wait_for(self.client.disconnect(), timeout=2.0)
             except Exception:  # closing regardless of outcome
                 pass
-        self._remove_tray()
-        await self.page.window.destroy()
-
-    async def _on_window_event(self, e: ft.WindowEvent) -> None:
-        """Window-close policy: with a tray, X hides; without one, X quits."""
-        if e.type != ft.WindowEventType.CLOSE:
-            return
-        if self._tray is not None:
-            self.page.window.visible = False
-            self.page.update()
-            return
-        await self._quit()
 
     def _on_toggle_close_to_tray(self, e: ft.ControlEvent) -> None:
         enabled = bool(e.control.value)
@@ -1108,14 +822,14 @@ class KlipschRemote:
         cfg["close_to_tray"] = enabled
         save_config(cfg)
         # Apply live: starting/stopping the tray flips the close behaviour too,
-        # since _on_window_event keys off whether a tray is running.
+        # since TrayLifecycle.on_window_event keys off whether a tray is running.
         if enabled:
-            self._ensure_tray()
+            self.tray.ensure()
         else:
-            self._remove_tray()
+            self.tray.remove()
 
     async def _standby(self, on: bool) -> None:
-        await self._guard(lambda: self.client.set_toggle(CH_POWERMODE, on))
+        await self._guard(lambda c: c.set_toggle(CH_POWERMODE, on))
 
     def _on_toggle_standby(self, e: ft.ControlEvent) -> None:
         self.page.run_task(self._standby, bool(e.control.value))
@@ -1145,7 +859,7 @@ class KlipschRemote:
     async def _do_rename(self, name: str) -> None:
         if self.client is None:
             return
-        await self._guard(lambda: self.client.set_name(name))
+        await self._guard(lambda c: c.set_name(name))
         # Mirror the new name everywhere it shows (header + settings row).
         self.model_text.value = name
         self.name_value_text.value = name
@@ -1179,10 +893,10 @@ class KlipschRemote:
         if self.client is None:
             return
 
-        async def _reset_ok() -> bool:
+        async def _reset_ok(c: KlipschClient) -> bool:
             # Return an explicit success flag: factory_reset() yields None, which
             # _guard also returns on failure, so we can't distinguish otherwise.
-            await self.client.factory_reset()
+            await c.factory_reset()
             return True
 
         if not await self._guard(_reset_ok):
@@ -1194,19 +908,19 @@ class KlipschRemote:
 
     async def _playpause(self) -> None:
         # Stateless: fire the toggle command; the speaker handles play vs pause.
-        await self._guard(lambda: self.client.play_pause())
+        await self._guard(lambda c: c.play_pause())
 
     def _on_playpause(self, _e: ft.ControlEvent) -> None:
         self.page.run_task(self._playpause)
 
     async def _prev(self) -> None:
-        await self._guard(lambda: self.client.prev_track())
+        await self._guard(lambda c: c.prev_track())
 
     def _on_prev(self, _e: ft.ControlEvent) -> None:
         self.page.run_task(self._prev)
 
     async def _next(self) -> None:
-        await self._guard(lambda: self.client.next_track())
+        await self._guard(lambda c: c.next_track())
 
     def _on_next(self, _e: ft.ControlEvent) -> None:
         self.page.run_task(self._next)
@@ -1343,11 +1057,11 @@ async def main(page: ft.Page) -> None:
         _diaglog(f"main: window pre-show step skipped ({exc!r})")
     _diaglog("main: window ready")
 
-    # Window-close policy lives on the remote (_on_window_event): when the
+    # Window-close policy lives on remote.tray (on_window_event): when the
     # close-to-tray feature is on, the X hides the window to the tray; when off
     # (or unsupported), it quits. prevent_close lets that handler run first.
     page.window.prevent_close = True
-    page.window.on_event = remote._on_window_event
+    page.window.on_event = remote.tray.on_window_event
 
     # Keep the autostart registration current: if launch-on-startup is on,
     # rewrite the entry so its command always points at THIS install. Self-
@@ -1385,7 +1099,7 @@ async def main(page: ft.Page) -> None:
     if not silent:
         # Normal launch: start the tray (if enabled) and show the window.
         if tray_on:
-            remote._ensure_tray()
+            remote.tray.ensure()
         await _reveal()
     else:
         # Silent autostart: stay hidden in the tray. But NEVER end up hidden with
@@ -1404,7 +1118,7 @@ async def main(page: ft.Page) -> None:
         def _on_fail() -> None:
             loop.call_soon_threadsafe(tray_ready.set)  # wake up -> reveal below
 
-        remote._ensure_tray(on_ready=_on_ready, on_fail=_on_fail)
+        remote.tray.ensure(on_ready=_on_ready, on_fail=_on_fail)
 
         async def _hide_or_fallback() -> None:
             # The tray's own shell-ready wait tops out around 60s before it

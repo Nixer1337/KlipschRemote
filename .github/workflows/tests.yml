@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest flet==0.85.3
-      - run: python -m pytest tests/test_gui_logic.py
+      - run: python -m pytest tests/test_gui_logic.py tests/test_screens.py
 
   # Static checks: ruff (lint) + mypy (types on the core library). Config lives
   # in pyproject.toml. Kept dependency-light like the test job — mypy treats the
