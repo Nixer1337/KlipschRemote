@@ -7,13 +7,13 @@ REM
 REM  Web Bluetooth treats http://localhost as a secure context, so it works here
 REM  without HTTPS. Open the page in Chrome, Edge or Opera. Press Ctrl+C to stop.
 REM
-REM  Usage:  serve_web.bat            (port 8000)
-REM          serve_web.bat 9000       (custom port)
+REM  Usage:  tools\serve_web.bat            (port 8000)
+REM          tools\serve_web.bat 9000       (custom port)
 REM ---------------------------------------------------------------------------
 
 set "PORT=%~1"
 if "%PORT%"=="" set "PORT=8000"
-set "ROOT=%~dp0web"
+set "ROOT=%~dp0..\web"
 
 REM Find Python 3: prefer the 'py' launcher, then 'python' on PATH.
 set "PY="
