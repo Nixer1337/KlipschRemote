@@ -57,7 +57,7 @@ client:
 
 ### Four ways to use it
 
-| | |
+| Interface | What it is |
 |---|---|
 | 🖥️ **Desktop GUI** | Native Windows / Linux / macOS app (Flet → Flutter), fast BLE connect. |
 | 🌐 **Web app** | Zero-install browser remote over Web Bluetooth (Chrome / Edge / Opera, desktop **and** Android). Installable as a PWA, works offline. |
