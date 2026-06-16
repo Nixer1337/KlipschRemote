@@ -102,6 +102,11 @@ class BleakLike(Protocol):
     async def disconnect(self) -> object: ...
     async def read_gatt_char(self, char: str) -> bytearray: ...
     async def write_gatt_char(self, char: str, data: bytes, response: bool = ...) -> object: ...
+    # Subscribe to value-change notifications. ``callback`` is invoked on the
+    # transport's event loop. Backends differ in the callback shape (bleak passes
+    # ``(characteristic, data)``, the WinRT backend passes ``(data,)``), so callers
+    # use a ``*args``-tolerant forwarder (see ``KlipschClient._start_notify``).
+    async def start_notify(self, char: str, callback: Callable[..., None]) -> object: ...
 
 
 # A factory builds an *unconnected* client for a target (address or BLEDevice).
@@ -289,6 +294,46 @@ class KlipschClient:
 
     async def write_byte(self, char_uuid: str, value: int) -> None:
         await self.write_raw(char_uuid, bytes([value & 0xFF]))
+
+    # --- live notifications ---
+    async def _start_notify(self, char_uuid: str, on_bytes: Callable[[bytes], None]) -> None:
+        """Subscribe to ``char_uuid``, forwarding each pushed value to ``on_bytes``.
+
+        The backends disagree on the callback shape (bleak: ``(char, data)``,
+        WinRT backend: ``(data,)``), so a ``*args`` forwarder takes the last
+        positional — the value — in both cases.
+        """
+        def forward(*args: object) -> None:
+            data = cast(bytes, args[-1])  # bleak: (char, data); WinRT: (data,)
+            on_bytes(bytes(data))
+        await self._require_client().start_notify(char_uuid, forward)
+
+    async def subscribe(self, on_change: Callable[[str, object], None]) -> None:
+        """Subscribe to live master-volume notifications.
+
+        ``on_change("volume_raw", level)`` is invoked — on the transport's event
+        loop — each time the speaker pushes a new volume (the user turns the
+        physical knob). Volume is the *only* setting the firmware proactively
+        emits: hardware probing shows input / EQ / subwoofer / standby all change
+        silently, and the knob is the speaker's only on-device control anyway. So
+        everything else is read once at connect and thereafter only changes
+        through this app's own UI. Subscribing to volume alone also keeps connect
+        fast — one CCCD write instead of fifteen.
+
+        Best-effort and additive: if the notification can't be set up the client
+        keeps working exactly as before, just without live volume. Torn down by
+        :meth:`disconnect`.
+        """
+        self._require_client()
+
+        def on_bytes(data: bytes) -> None:
+            if data:
+                on_change("volume_raw", clamp(data[0], 0, MAX_VOLUME_RAW))
+
+        try:
+            await self._start_notify(CH_MASTER_VOLUME, on_bytes)
+        except Exception:  # notify unsupported on this unit — skip, never raise
+            pass
 
     # --- volume / mute ---
     async def get_volume_raw(self) -> int:

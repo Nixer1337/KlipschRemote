@@ -323,6 +323,57 @@ def test_device_info_reads_dis_and_tolerates_absent():
     assert isinstance(di.as_dict(), dict)
 
 
+# ---- live notifications ----------------------------------------------------
+class NotifyFake(FakeBleak):
+    """FakeBleak that records notification subscriptions and can push values.
+
+    ``start_notify`` stores the callback; ``push`` invokes it with raw bytes the
+    way the WinRT backend does (single positional arg = the value).
+    """
+
+    def __init__(self, values: dict[str, bytes] | None = None) -> None:
+        super().__init__(values)
+        self.subs: dict[str, object] = {}
+
+    async def start_notify(self, char: str, callback) -> None:
+        self.subs[char] = callback
+
+    def push(self, char: str, data: bytes) -> None:
+        self.subs[char](bytes(data))
+
+
+def test_subscribe_only_volume_is_live():
+    """The speaker only pushes master volume (the physical knob is its sole
+    on-device control). ``subscribe`` wires up exactly that one characteristic,
+    decodes its level and clamps out-of-range bytes."""
+    fake = NotifyFake()
+    events: list[tuple[str, object]] = []
+
+    async def go():
+        async with make_client(fake) as client:
+            await client.subscribe(lambda field, value: events.append((field, value)))
+            # ONLY the volume char is subscribed — nothing else is live
+            assert list(fake.subs) == [c.CH_MASTER_VOLUME]
+            fake.push(c.CH_MASTER_VOLUME, bytes([20]))
+            fake.push(c.CH_MASTER_VOLUME, bytes([200]))  # over-range -> clamped
+
+    run(go())
+    assert events == [("volume_raw", 20), ("volume_raw", c.MAX_VOLUME_RAW)]
+
+
+def test_subscribe_drops_empty_volume_push():
+    fake = NotifyFake()
+    events: list[tuple[str, object]] = []
+
+    async def go():
+        async with make_client(fake) as client:
+            await client.subscribe(lambda field, value: events.append((field, value)))
+            fake.push(c.CH_MASTER_VOLUME, b"")  # empty payload -> ignored
+
+    run(go())
+    assert events == []
+
+
 # ---- aggregate status ------------------------------------------------------
 def test_status_aggregates_all_fields():
     fake = FakeBleak({

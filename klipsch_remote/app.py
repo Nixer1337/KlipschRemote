@@ -652,6 +652,10 @@ class KlipschRemote:
         self.page.update()
         await self._load_state()
         self.show_remote()
+        # Go reactive: subscribe to the speaker's change notifications so the UI
+        # follows the physical knob / another app / auto-sleep in real time. Runs
+        # in the background (after the remote is already up) and is best-effort.
+        self.page.run_task(self._subscribe)
 
     async def _auto_connect(self, address: str) -> None:
         """Startup auto-connect — a few more retries than a manual click, since
@@ -704,8 +708,12 @@ class KlipschRemote:
 
     # ------------------------------------------------------------ remote state
     async def _load_state(self) -> None:
-        """Read the full speaker state into the controls. Safe whether the remote
-        screen is attached yet (initial connect) or not (the refresh button)."""
+        """Read the full speaker state into the controls once, at connect.
+
+        Everything here changes only through this app's own UI afterwards — the
+        speaker doesn't push these (volume aside, which is live via ``subscribe``)
+        and the knob is its only on-device control. So one read at connect is
+        enough; there's no refresh button and no polling."""
         c = self.client
         if c is None:
             return
@@ -717,7 +725,6 @@ class KlipschRemote:
         self.name_value_text.value = name
         # Device info is immutable for this connection — read it once (here, with
         # the rest of the state) and cache it so the About page opens instantly.
-        # Refresh re-runs _load_state but skips this (already cached).
         if self._device_info is None:
             self._device_info = await self._guard(c.device_info)
         self.vol_slider.value = st.volume_raw
@@ -729,8 +736,8 @@ class KlipschRemote:
         self.night_sw.value = bool(st.night)
         self.dynbass_sw.value = bool(st.dynamic_bass)
         # Subwoofer lives on the Settings screen, but its state comes from this
-        # one status read (shared with connect + the Refresh button) — NOT a
-        # separate BLE read each time Settings opens. We reflect it into the
+        # one connect-time status read — NOT a separate BLE read each time
+        # Settings opens. We reflect it into the
         # (persistent) sub controls here and cache detection; show_settings then
         # just applies the cached state to the freshly-built card, so opening the
         # tab is instant and doesn't visibly re-run detection.
@@ -742,8 +749,35 @@ class KlipschRemote:
         # to read or reflect here.
         self.page.update()
 
-    def _on_refresh(self, _e: ft.ControlEvent) -> None:
-        self.page.run_task(self._load_state)
+    # ------------------------------------------------------- live notifications
+    async def _subscribe(self) -> None:
+        """Subscribe to the speaker's change notifications (reactive UI).
+
+        Best-effort and additive: if it can't come up, the remote still works
+        exactly as before — just not live-updating. Skipped in demo mode (the
+        fake transport has no notify channel)."""
+        if self.client is None or _DEMO:
+            return
+        async with self.lock:
+            try:
+                await self.client.subscribe(self._on_notify)
+            except Exception:  # notifications are a nicety — never break the remote
+                pass
+
+    def _on_notify(self, field: str, value: object) -> None:
+        """Mirror a pushed volume change into the slider. Runs on the event loop
+        (the client marshals the winrt callback there), so it's safe to touch Flet
+        state and call page.update(). Volume is the only thing the speaker pushes
+        (see ``KlipschClient.subscribe``) — pure UI, never writes back, so it can't
+        loop with the change that triggered it."""
+        if self.client is None:
+            return
+        try:
+            if field == "volume_raw":
+                self.vol_slider.value = value
+                self.page.update()
+        except Exception:  # a stray push must never crash the UI loop
+            pass
 
     async def _disconnect(self) -> None:
         if self.client is not None:

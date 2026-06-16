@@ -42,6 +42,8 @@ class WinRTBleakLikeClient:
         # caches so repeated reads/writes don't re-resolve service + char
         self._services: dict[str, object] = {}
         self._chars: dict[str, object] = {}
+        # active notifications: char uuid -> (characteristic, value-changed token)
+        self._notify: dict[str, tuple[object, object]] = {}
 
     # --- BleakLike ---
     async def connect(self) -> WinRTBleakLikeClient:
@@ -62,6 +64,14 @@ class WinRTBleakLikeClient:
         return self
 
     async def disconnect(self) -> None:
+        # Detach value-changed handlers before tearing the device down so the
+        # winrt callbacks can't fire into a half-closed client.
+        for characteristic, token in self._notify.values():
+            try:
+                characteristic.remove_value_changed(token)
+            except Exception:
+                pass
+        self._notify.clear()
         self._chars.clear()
         self._services.clear()
         dev, self._device = self._device, None
@@ -106,6 +116,66 @@ class WinRTBleakLikeClient:
             status = await characteristic.write_value_async(buf)
         if status != GattCommunicationStatus.SUCCESS:
             raise OSError(f"GATT write failed for {char}: status {status}")
+
+    async def start_notify(self, char: str, callback) -> None:
+        """Subscribe to value-change notifications for ``char``.
+
+        The winrt ValueChanged event fires on a thread-pool thread, so the
+        decoded bytes are marshalled back onto the asyncio loop this coroutine
+        runs on (``call_soon_threadsafe``) before ``callback`` is invoked — the
+        caller's handler then runs on the loop, safe to touch UI state.
+        """
+        import asyncio
+
+        from winrt.windows.devices.bluetooth.genericattributeprofile import (
+            GattClientCharacteristicConfigurationDescriptorValue as _CCCD,
+        )
+        from winrt.windows.devices.bluetooth.genericattributeprofile import (
+            GattCommunicationStatus,
+        )
+        from winrt.windows.storage.streams import DataReader
+
+        loop = asyncio.get_running_loop()
+        characteristic = await self._characteristic(char)
+
+        def _on_changed(_sender: object, args: object) -> None:
+            buf = args.characteristic_value
+            out = bytearray(buf.length)
+            if buf.length:
+                DataReader.from_buffer(buf).read_bytes(out)
+            loop.call_soon_threadsafe(callback, bytes(out))
+
+        token = characteristic.add_value_changed(_on_changed)
+        status = await characteristic.write_client_characteristic_configuration_descriptor_async(
+            _CCCD.NOTIFY
+        )
+        if status != GattCommunicationStatus.SUCCESS:
+            try:
+                characteristic.remove_value_changed(token)
+            except Exception:
+                pass
+            raise OSError(f"subscribe failed for {char}: status {status}")
+        self._notify[char] = (characteristic, token)
+
+    async def stop_notify(self, char: str) -> None:
+        entry = self._notify.pop(char, None)
+        if entry is None:
+            return
+        characteristic, token = entry
+        try:
+            from winrt.windows.devices.bluetooth.genericattributeprofile import (
+                GattClientCharacteristicConfigurationDescriptorValue as _CCCD,
+            )
+
+            await characteristic.write_client_characteristic_configuration_descriptor_async(
+                _CCCD.NONE
+            )
+        except Exception:
+            pass
+        try:
+            characteristic.remove_value_changed(token)
+        except Exception:
+            pass
 
     # --- internals: targeted, cached service/char lookup ---
     async def _characteristic(self, char: str):
