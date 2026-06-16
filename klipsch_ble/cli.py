@@ -252,16 +252,23 @@ def list_bluetooth_windows():
 
 def list_bluetooth_linux():
     """Every paired Bluetooth device known to BlueZ (name + MAC), unfiltered."""
-    # Newer bluetoothctl wants the explicit `Paired` filter; older builds only
-    # understand a bare `devices` (paired + known). Try the precise form first.
+    # Newer bluetoothctl wants the explicit `Paired` filter; older builds reject
+    # it and only understand a bare `devices` (paired + known). Try the precise
+    # form first and fall back when it's unsupported -- keying off the *exit code*,
+    # not just a raised exception: subprocess.run doesn't raise on a rejected
+    # sub-command, and it's the same binary both times (a real exception would
+    # kill both attempts anyway), so the non-zero exit is what makes the fallback
+    # fire. A zero exit is trusted even when empty (a modern host with nothing
+    # paired), so we don't needlessly widen to the bare `devices` (paired+known).
     for argv in (["bluetoothctl", "devices", "Paired"], ["bluetoothctl", "devices"]):
         try:
-            out = subprocess.run(argv, capture_output=True, text=True,
-                                 timeout=10).stdout
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=10)
         except Exception:
             continue
+        if proc.returncode != 0:  # filter unsupported on this build -- try the next form
+            continue
         found: list[Paired] = []
-        for line in out.splitlines():
+        for line in proc.stdout.splitlines():
             m = re.match(r"Device\s+([0-9A-Fa-f:]{17})\s+(.*)", line.strip())
             if m:
                 found.append(Paired(address=m.group(1).upper(),

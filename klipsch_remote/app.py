@@ -54,7 +54,7 @@ from klipsch_ble.constants import (
     SUB_DB_MIN,
 )
 
-from . import autostart, screens
+from . import autostart, screens, viewstate
 from .single_instance import SingleInstance, bring_to_front
 from .theme import (
     CUSTOM,
@@ -80,18 +80,8 @@ _DEMO = os.environ.get("KLIPSCH_DEMO") == "1"
 _SHOT = (os.environ.get("KLIPSCH_SHOT") or "").strip().lower() or None
 _SHOT_MODE = _DEMO and _SHOT is not None
 
-# Speaker-placement (boundary-gain) copy: the live description shown under the
-# selector for the current choice. The byte each maps to is the bass gain the
-# speaker adds — most when free-standing, least in a corner (where the room
-# already reinforces bass). See klipsch_ble.constants.Placement.
-_PLACEMENT_HINT: dict[str, str] = {
-    "corner": "In a corner the room reinforces bass the most — the speaker adds "
-              "the least.",
-    "wall": "Against a wall the room adds some bass — the speaker adds a "
-            "moderate amount.",
-    "open": "Free-standing, away from walls — no room reinforcement, so the "
-            "speaker adds the most bass.",
-}
+# Speaker-placement (boundary-gain) copy + the matching lookup now live, Flet-free
+# and unit-tested, in viewstate.PLACEMENT_HINT / viewstate.placement_hint.
 
 
 def _diaglog(msg: str) -> None:
@@ -309,7 +299,8 @@ class KlipschRemote:
             ])
         # Live description of the current choice, under the selector.
         self.placement_hint_text = ft.Text(
-            _PLACEMENT_HINT["wall"], size=11, color=ft.Colors.ON_SURFACE_VARIANT)
+            viewstate.placement_hint("wall"), size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT)
 
         # --- modes (Audio Adjustments collapsible) ---
         self.dynbass_sw = ft.Switch(value=False, data="dynamic_bass",
@@ -553,10 +544,9 @@ class KlipschRemote:
 
     @staticmethod
     def _match_preset(bass: int, mid: int, treble: int) -> str:
-        for name, vals in EQ_PRESETS.items():
-            if vals == (bass, mid, treble):
-                return name
-        return CUSTOM
+        # The match itself is Flet-free (and tested) in viewstate; CUSTOM is this
+        # layer's label for "no named preset fits".
+        return viewstate.match_eq_preset(EQ_PRESETS, bass, mid, treble) or CUSTOM
 
     # ----------------------------------------------------------- connect logic
     async def _load_paired(self, *, preserve_status: bool = False) -> None:
@@ -868,25 +858,25 @@ class KlipschRemote:
         uniform greyed-out group, not a patchwork of individually-dimmed widgets.
         A failed/absent read (None) is treated as "not detected".
         """
-        present = detected is True
+        disp = viewstate.sub_detection(detected)
         self._sub_detected = detected
-        self.sub_section_status.value = "" if present else "Not detected"
+        self.sub_section_status.value = disp.status
         # The card is rebuilt every time Settings opens; only touch it if it
         # exists (show_settings applies the cached state to a freshly-built card).
         card = getattr(self, "sub_card", None)
         if card is not None:
-            card.disabled = not present
-            card.opacity = 1.0 if present else 0.38
+            card.disabled = not disp.present
+            card.opacity = disp.opacity
 
     def _reflect_sub_level(self, db: int | None) -> None:
         if db is not None:
             self.sub_level_slider.value = db
-            self.sub_level_value_text.value = f"{db} dB"
+            self.sub_level_value_text.value = viewstate.format_db(db)
 
     async def _sub_level_commit(self, db: int) -> None:
         # Slider writes only on change-end, so dragging doesn't flood the link.
         await self._guard(lambda: self.client.set_sub_level_db(db))
-        self.sub_level_value_text.value = f"{db} dB"
+        self.sub_level_value_text.value = viewstate.format_db(db)
         self.sub_level_value_text.update()
 
     def _on_sub_level_commit(self, e: ft.ControlEvent) -> None:
@@ -922,8 +912,7 @@ class KlipschRemote:
         callers push the update."""
         self._placement = name
         self.placement_seg.selected = [name]
-        self.placement_hint_text.value = _PLACEMENT_HINT.get(
-            name, _PLACEMENT_HINT["wall"])
+        self.placement_hint_text.value = viewstate.placement_hint(name)
 
     async def _apply_placement(self, name: str) -> None:
         # set_placement accepts the placement name directly (corner/wall/open).

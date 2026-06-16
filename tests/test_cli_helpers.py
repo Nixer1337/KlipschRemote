@@ -8,10 +8,13 @@ this runs in the dependency-light pytest CI.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from klipsch_ble.cli import (
     _mac_from_dev_id,
+    handle_command,
     input_arg_to_byte,
     parse_delta,
     volume_bar,
@@ -88,3 +91,44 @@ class TestMacFromDevId:
 
     def test_no_match(self):
         assert _mac_from_dev_id(r"USB\VID_1234&PID_5678") is None
+
+
+class _NameSpeaker:
+    """Minimal async stand-in for KlipschClient: records the name written and
+    replays it on read — enough to drive ``handle_command``'s ``name`` branch
+    without bleak or a real connection."""
+
+    def __init__(self, name: str | None = None) -> None:
+        self.name = name
+
+    async def set_name(self, value: str) -> None:
+        self.name = value
+
+    async def get_name(self) -> str | None:
+        return self.name
+
+
+class TestHandleCommandName:
+    """``name`` is the only command with a free-text argument. Dispatch stays
+    case-insensitive, but the name itself must keep its original case — it used
+    to be force-lowercased (``name Living Room`` -> ``living room``)."""
+
+    def test_mixed_case_is_preserved(self):
+        spk = _NameSpeaker()
+        asyncio.run(handle_command(spk, "name Living Room"))
+        assert spk.name == "Living Room"
+
+    def test_command_keyword_is_case_insensitive(self):
+        spk = _NameSpeaker()
+        asyncio.run(handle_command(spk, "NAME Kitchen HiFi"))
+        assert spk.name == "Kitchen HiFi"
+
+    def test_boundary_whitespace_trimmed(self):
+        spk = _NameSpeaker()
+        asyncio.run(handle_command(spk, "name   Den TV  "))
+        assert spk.name == "Den TV"
+
+    def test_no_arg_reads_current_name(self):
+        spk = _NameSpeaker(name="Bedroom")
+        result = asyncio.run(handle_command(spk, "name"))
+        assert result == "name: Bedroom"
