@@ -436,7 +436,7 @@ async def interactive(f: KlipschClient):
                 print(short_volume(await f.get_volume_raw(), await f.get_mute()))
                 continue
 
-            handled = await handle_command(f, low)
+            handled = await handle_command(f, cmd)
             if handled is None:
                 print("didn't get that; '?' for help")
         except Exception as e:
@@ -444,12 +444,21 @@ async def interactive(f: KlipschClient):
     print("bye!")
 
 
-async def handle_command(f: KlipschClient, low: str):
-    """Run one command. Returns the printed result string, or None if unrecognized."""
+async def handle_command(f: KlipschClient, line: str):
+    """Run one command. Returns the printed result string, or None if unrecognized.
+
+    ``line`` keeps its original case: command dispatch is case-insensitive, but
+    free-text arguments (the speaker ``name``) are read from the original text, so
+    a mixed-case name isn't force-lowercased to "living room"."""
+    line = line.strip()
+    low = line.lower()
     parts = low.split()
+    if not parts:
+        return None
     head = parts[0]
     arg = parts[1] if len(parts) > 1 else ""
     rest = low[len(head):].strip()
+    rest_raw = line[len(head):].strip()  # original-case remainder (for `name`)
 
     # volume
     if head == "m":
@@ -534,10 +543,10 @@ async def handle_command(f: KlipschClient, low: str):
 
     # name
     if head == "name":
-        if not rest:
+        if not rest_raw:
             return _say(f"name: {await f.get_name()}")
-        await f.set_name(rest)
-        return _say(f"name -> {rest}")
+        await f.set_name(rest_raw)
+        return _say(f"name -> {rest_raw}")
 
     # device info (read-only DIS: firmware, serial, ...)
     if head in ("info", "i"):
@@ -609,7 +618,7 @@ async def run_oneshot(f: KlipschClient, args):
         line = args.cmd
         if getattr(args, "value", None):
             line += " " + " ".join(args.value)
-        if await handle_command(f, line.strip().lower()) is None:
+        if await handle_command(f, line) is None:
             print("unknown command")
 
 

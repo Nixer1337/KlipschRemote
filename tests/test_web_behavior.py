@@ -74,13 +74,13 @@ def _eval_js(name: str, value: int) -> int:
     return eval(expr, {"__builtins__": {}}, {**_NS, param: value})
 
 
-# (js name, python reference, input domain). Volume helpers stay inside their
-# valid range (the Python side raises outside it); EQ/sub sweep past their bounds
-# so the shared clamping is exercised on both sides.
+# (js name, python reference, input domain). Every conversion clamps out-of-range
+# input on both sides, so the domains sweep past the valid bounds to exercise that
+# shared clamping — and to catch a clamp present on only one side.
 _CASES = [
-    ("volumePercentToRaw", c.volume_percent_to_raw, range(0, 101)),
-    ("volumeRawToPercent", c.volume_raw_to_percent, range(0, c.MAX_VOLUME_RAW + 1)),
-    ("volumeRawToDb", c.volume_raw_to_db, range(0, c.MAX_VOLUME_RAW + 1)),
+    ("volumePercentToRaw", c.volume_percent_to_raw, range(-10, 111)),
+    ("volumeRawToPercent", c.volume_raw_to_percent, range(-5, c.MAX_VOLUME_RAW + 6)),
+    ("volumeRawToDb", c.volume_raw_to_db, range(-5, c.MAX_VOLUME_RAW + 6)),
     ("eqLevelToByte", c.eq_level_to_byte, range(-15, 12)),
     ("eqByteToLevel", c.eq_byte_to_level, range(-4, 21)),
     ("subRawToDb", c.sub_raw_to_db, range(-5, 40)),

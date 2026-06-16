@@ -507,6 +507,15 @@ class KlipschRemote:
         the lock — so ``self.client`` is dereferenced only after the None-check.
         A tap that races a disconnect then simply no-ops instead of raising
         ``AttributeError`` on a torn-down client.
+
+        Optimistic UI, by design: the control handlers mirror each change into
+        the UI right away and do NOT roll it back if the write here fails — they
+        only report it via the snackbar. The speaker pushes no state except
+        volume (see ``KlipschClient.subscribe``; input / EQ / sub / standby all
+        change silently) and there is no polling or refresh, so the UI is the
+        source of truth for everything else. A failed write is therefore
+        surfaced but left in place; the value reconciles on the next connect,
+        which re-reads the full state.
         """
         if self.client is None:
             return None

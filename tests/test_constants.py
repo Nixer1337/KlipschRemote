@@ -20,15 +20,15 @@ def test_volume_percent_to_raw_truncates_like_fives_api():
     assert c.volume_percent_to_raw(49) == 17
 
 
-@pytest.mark.parametrize("bad", [-1, 101])
-def test_volume_percent_out_of_range_raises(bad):
-    with pytest.raises(ValueError):
-        c.volume_percent_to_raw(bad)
+@pytest.mark.parametrize("bad, expected", [(-1, 0), (101, c.MAX_VOLUME_RAW)])
+def test_volume_percent_out_of_range_clamps(bad, expected):
+    # Out-of-range percent is clamped, matching the EQ/sub conversions and klipsch.js.
+    assert c.volume_percent_to_raw(bad) == expected
 
 
-def test_volume_raw_out_of_range_raises():
-    with pytest.raises(ValueError):
-        c.volume_raw_to_percent(c.MAX_VOLUME_RAW + 1)
+def test_volume_raw_out_of_range_clamps():
+    assert c.volume_raw_to_percent(c.MAX_VOLUME_RAW + 1) == 100
+    assert c.volume_raw_to_percent(-1) == 0
 
 
 def test_volume_db_endpoints():

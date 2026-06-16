@@ -123,22 +123,26 @@ def clamp(value: int, lo: int, hi: int) -> int:
 
 
 def volume_percent_to_raw(percent: int) -> int:
-    """Convert 0..100 percent to the raw 0..0x24 step (truncating, per fives-api)."""
-    if not 0 <= percent <= 100:
-        raise ValueError("volume percent must be between 0 and 100")
-    return percent * MAX_VOLUME_RAW // 100
+    """Convert 0..100 percent to the raw 0..0x24 step (truncating, per fives-api).
+
+    Out-of-range input is clamped — consistent with the EQ/sub conversions below
+    and with ``web/klipsch.js``, which already clamps here."""
+    return clamp(percent, 0, 100) * MAX_VOLUME_RAW // 100
 
 
 def volume_raw_to_percent(raw: int) -> int:
-    """Convert a raw 0..0x24 step to 0..100 percent (truncating, per fives-api)."""
-    if not 0 <= raw <= MAX_VOLUME_RAW:
-        raise ValueError(f"raw volume must be between 0 and {MAX_VOLUME_RAW}")
-    return raw * 100 // MAX_VOLUME_RAW
+    """Convert a raw 0..0x24 step to 0..100 percent (truncating, per fives-api).
+
+    Out-of-range input is clamped — consistent with the EQ/sub conversions below."""
+    return clamp(raw, 0, MAX_VOLUME_RAW) * 100 // MAX_VOLUME_RAW
 
 
 def volume_raw_to_db(raw: int) -> int:
-    """Approximate the on-screen dB label for a raw step (-80..+8). Display-only."""
-    return -80 + round(raw * (88 / MAX_VOLUME_RAW))
+    """Approximate the on-screen dB label for a raw step (-80..+8). Display-only.
+
+    ``88`` is the (+8)-(-80) dB span; out-of-range input is clamped to match
+    ``web/klipsch.js``."""
+    return -80 + round(clamp(raw, 0, MAX_VOLUME_RAW) * (88 / MAX_VOLUME_RAW))
 
 
 # ---- EQ (bass / mid / treble) -----------------------------------------------
