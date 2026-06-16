@@ -74,19 +74,26 @@ class ModelInfo:
     features: frozenset[str] = field(default=FEATURES)
 
 
-# DIS Model Number (0x2A24) literals, from CinemaStreamUtil._clinit_.
+# DIS Model Number (0x2A24) literals. The first (primary) number per product is
+# from CinemaStreamUtil._clinit_; the second number on Fives/Sevens/Nines is the
+# alternate-finish SKU that the matching <Product>DeviceTemplateKt._clinit_ binds
+# to the very same device template (so it speaks the identical BLE protocol).
 # Note: "The Fives" and "The Fives McLaren" share model number 1067563 and are
-# told apart only by the Hardware Revision (V1=1, V2=2, McLaren=3).
+# told apart only by the Hardware Revision (V1=1, V2=2, McLaren=3); the second
+# Fives SKU (1067562) resolves to FIVES and is refined by HW rev the same way.
 MODEL_INFO: dict[KlipschModel, ModelInfo] = {
     KlipschModel.FIVES: ModelInfo(
-        KlipschModel.FIVES, "The Fives", ("1067563",), hardware_revs=(1, 2)),
+        KlipschModel.FIVES, "The Fives", ("1067563", "1067562"),
+        hardware_revs=(1, 2)),
     KlipschModel.FIVES_MCLAREN: ModelInfo(
         KlipschModel.FIVES_MCLAREN, "The Fives McLaren", ("1067563",),
         hardware_revs=(3,)),
     KlipschModel.SEVENS: ModelInfo(
-        KlipschModel.SEVENS, "The Sevens", ("1071199",), hardware_revs=(4,)),
+        KlipschModel.SEVENS, "The Sevens", ("1071199", "1071202"),
+        hardware_revs=(4,)),
     KlipschModel.NINES: ModelInfo(
-        KlipschModel.NINES, "The Nines", ("1071200",), hardware_revs=(5,)),
+        KlipschModel.NINES, "The Nines", ("1071200", "1071201"),
+        hardware_revs=(5,)),
     KlipschModel.NINES_MCLAREN: ModelInfo(
         KlipschModel.NINES_MCLAREN, "The Nines McLaren", ("1071482",),
         hardware_revs=(8,)),

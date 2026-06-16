@@ -181,8 +181,9 @@
   const placementFromByte = (b) => (b != null && PLACEMENT_NAMES[b] ? b : PLACEMENT_DEFAULT);
 
   // ---- model identification (mirror models.py) -----------------------------
-  // DIS Model Number (0x2A24) -> model; the Fives share 1067563 and are split by
-  // Hardware Revision (0x2A27): V1=1, V2=2, McLaren=3.
+  // DIS Model Number (0x2A24) -> model; Fives/Sevens/Nines each have a second
+  // (alternate-finish) SKU number that maps to the same model. The Fives share
+  // 1067563 and are split by Hardware Revision (0x2A27): V1=1, V2=2, McLaren=3.
   const MODELS = {
     fives: { display: "The Fives" },
     fives_mclaren: { display: "The Fives McLaren" },
@@ -191,7 +192,7 @@
     nines_mclaren: { display: "The Nines McLaren" },
     unknown: { display: "Klipsch speaker" },
   };
-  const MODEL_BY_NUMBER = { "1067563": "fives", "1071199": "sevens", "1071200": "nines", "1071482": "nines_mclaren" };
+  const MODEL_BY_NUMBER = { "1067563": "fives", "1067562": "fives", "1071199": "sevens", "1071202": "sevens", "1071200": "nines", "1071201": "nines", "1071482": "nines_mclaren" };
   const MODEL_BY_HW_REV = { 1: "fives", 2: "fives", 3: "fives_mclaren", 4: "sevens", 5: "nines", 8: "nines_mclaren" };
 
   function modelFromName(name) {

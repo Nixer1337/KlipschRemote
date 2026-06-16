@@ -12,8 +12,10 @@ def test_reverse_lookups_derived_from_model_info():
     # The lookups must be built from MODEL_INFO (single source of truth), with
     # "first wins" so the shared Fives number resolves to the plain Fives.
     assert m.MODEL_BY_NUMBER == {
-        "1067563": K.FIVES, "1071199": K.SEVENS,
-        "1071200": K.NINES, "1071482": K.NINES_MCLAREN,
+        "1067563": K.FIVES, "1067562": K.FIVES,
+        "1071199": K.SEVENS, "1071202": K.SEVENS,
+        "1071200": K.NINES, "1071201": K.NINES,
+        "1071482": K.NINES_MCLAREN,
     }
     assert m.MODEL_BY_HW_REV == {
         1: K.FIVES, 2: K.FIVES, 3: K.FIVES_MCLAREN,
@@ -22,16 +24,19 @@ def test_reverse_lookups_derived_from_model_info():
 
 
 def test_shared_fives_number_refined_by_hw_revision():
-    assert m.resolve_model("1067563", "1") is K.FIVES
-    assert m.resolve_model("1067563", "2") is K.FIVES
-    assert m.resolve_model("1067563", "3") is K.FIVES_MCLAREN
-    # Unknown/absent revision on the shared number falls back to the plain Fives.
-    assert m.resolve_model("1067563", None) is K.FIVES
-    assert m.resolve_model("1067563", "99") is K.FIVES
+    for fives_number in ("1067563", "1067562"):  # both Fives finish SKUs
+        assert m.resolve_model(fives_number, "1") is K.FIVES
+        assert m.resolve_model(fives_number, "2") is K.FIVES
+        assert m.resolve_model(fives_number, "3") is K.FIVES_MCLAREN
+        # Unknown/absent revision on a Fives number falls back to the plain Fives.
+        assert m.resolve_model(fives_number, None) is K.FIVES
+        assert m.resolve_model(fives_number, "99") is K.FIVES
 
 
 @pytest.mark.parametrize("number, expected", [
     ("1071199", K.SEVENS), ("1071200", K.NINES), ("1071482", K.NINES_MCLAREN),
+    # Alternate-finish SKUs that the app binds to the same template (per binary).
+    ("1071202", K.SEVENS), ("1071201", K.NINES),
 ])
 def test_distinct_model_numbers(number, expected):
     assert m.resolve_model(number) is expected
