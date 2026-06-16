@@ -92,6 +92,9 @@
       els.modelName.textContent = client.modelDisplay;
       await loadAll();
       await loadDeviceInfo(); // read device info once, up front (seeds the Name row)
+      // Live volume — the only thing the speaker pushes (the knob). The slider
+      // then follows the physical knob; everything else changes only via this UI.
+      await client.subscribeVolume((raw) => setRange(els.volume, raw));
       showScreen("remote");
     } catch (e) {
       console.error(e);
@@ -299,7 +302,7 @@
       connectBtn: $("connect-btn"), connectStatus: $("connect-status"), connectError: $("connect-error"),
       connectingStatus: $("connecting-status"),
       // remote
-      remoteRefresh: $("remote-refresh"), modelName: $("model-name"),
+      modelName: $("model-name"),
       muteBtn: $("mute-btn"), volume: $("volume"),
       inputGrid: $("input-grid"),
       prev: $("prev"), playpause: $("playpause"), next: $("next"),
@@ -338,7 +341,6 @@
 
     // navigation
     els.settingsDisconnect.addEventListener("click", onDisconnect);
-    els.remoteRefresh.addEventListener("click", () => guard(loadAll, "Refresh failed"));
     els.openSettings.addEventListener("click", () => showScreen("settings"));
     els.settingsBack.addEventListener("click", () => showScreen("remote"));
     els.aboutRow.addEventListener("click", () => {

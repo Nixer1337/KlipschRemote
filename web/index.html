@@ -93,12 +93,12 @@
     <!-- ============================= REMOTE ============================ -->
     <section id="screen-remote" class="screen" hidden>
       <header class="appbar">
-        <!-- Spacer balancing the refresh button so the title stays centred. No
-             back-arrow here: disconnect lives in Settings — it was too easy to
-             hit by reflex, dropping the connection. -->
-        <span class="iconbtn-spacer"></span>
+        <!-- Just the centred speaker name. No refresh button — the speaker only
+             pushes volume (live via subscribe); everything else changes solely
+             through this UI, so nothing goes stale. No back-arrow either:
+             disconnect lives in Settings (an arrow here was too easy to hit by
+             reflex, dropping the connection). -->
         <h2 id="model-name" class="appbar-title">Klipsch speaker</h2>
-        <button class="iconbtn" id="remote-refresh" title="Refresh status"><span class="mi">refresh</span></button>
       </header>
 
       <div class="scroll">

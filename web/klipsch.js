@@ -367,6 +367,25 @@
     async getMute() { const b = await this.readByte(CH_MUTE); return b == null ? null : !!b; }
     setMute(on) { return this.writeByte(CH_MUTE, on ? 1 : 0); }
 
+    // --- live notifications ---
+    // Master volume is the ONLY thing the speaker pushes — the physical knob is
+    // its sole on-device control; input / EQ / subwoofer / etc. all change
+    // silently. So we subscribe to volume alone (the slider then follows the
+    // knob) and read everything else once at connect. Best-effort: if
+    // notifications can't start, the remote still works, just without live volume.
+    async subscribeVolume(onChange) {
+      try {
+        const c = await this._char(CH_MASTER_VOLUME);
+        c.addEventListener("characteristicvaluechanged", (e) => {
+          const dv = e.target.value;
+          if (dv && dv.byteLength) onChange(clamp(dv.getUint8(0), 0, MAX_VOLUME_RAW));
+        });
+        await c.startNotifications();
+      } catch (e) {
+        /* notifications are a nicety — never block the remote */
+      }
+    }
+
     // --- input ---
     async getInput() { const b = await this.readByte(CH_INPUT); return normalizeInput(b == null ? 0 : b); }
     setInput(value) {
