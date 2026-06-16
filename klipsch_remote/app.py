@@ -743,6 +743,23 @@ class KlipschRemote:
             self.about_values[label].value = str(value) if value else "—"
         self.about_status.visible = False
 
+    @staticmethod
+    def _safe_update(*controls: ft.Control) -> None:
+        """``.update()`` controls that may no longer be on the page.
+
+        Settings/About state is fetched over BLE *after* the screen is shown
+        (see ``_load_settings_extras`` / ``_load_device_info``). If the user
+        navigates away before that slow read returns, the AnimatedSwitcher has
+        already swapped the screen's controls out and Flet's ``.update()`` raises
+        "Control must be added to the page first". A detached control is a no-op
+        here; the next time the screen opens it re-reads and refreshes.
+        """
+        for control in controls:
+            try:
+                control.update()
+            except RuntimeError:
+                pass
+
     async def _load_device_info(self) -> None:
         """Fallback lazy read (only when the connect-time read failed): read the
         speaker's Device Information, cache it, and fill the open About page."""
@@ -751,13 +768,11 @@ class KlipschRemote:
         di = await self._guard(lambda c: c.device_info())
         if di is None:
             self.about_status.value = "Couldn't read device information."
-            self.about_status.update()
+            self._safe_update(self.about_status)
             return
         self._device_info = di
         self._apply_device_info()
-        for text in self.about_values.values():
-            text.update()
-        self.about_status.update()
+        self._safe_update(*self.about_values.values(), self.about_status)
 
     async def _load_settings_extras(self) -> None:
         """Read the Settings-only speaker state lazily on open: auto-standby
@@ -773,7 +788,7 @@ class KlipschRemote:
         val = await self._guard(lambda c: c.get_toggle(CH_POWERMODE))
         if val is not None:
             self.standby_sw.value = bool(val)
-            self.standby_sw.update()
+            self._safe_update(self.standby_sw)
 
     async def _load_placement(self) -> None:
         """Read the speaker's placement (boundary gain) into the segmented button."""
@@ -782,8 +797,7 @@ class KlipschRemote:
         placement = await self._guard(lambda c: c.get_placement())
         if placement is not None:
             self._reflect_placement(placement_name(placement))
-            self.placement_seg.update()
-            self.placement_hint_text.update()
+            self._safe_update(self.placement_seg, self.placement_hint_text)
 
     def _on_toggle_autoconnect(self, e: ft.ControlEvent) -> None:
         cfg = load_config()
