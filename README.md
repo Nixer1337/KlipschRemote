@@ -5,10 +5,9 @@
 # KlipschRemote
 
 **Control your Klipsch powered speakers from your computer — over Bluetooth LE.**
-The Fives · The Sevens · The Nines (incl. McLaren) · Windows · Linux · macOS
+The Fives · The Sevens · The Nines (incl. McLaren) · Windows · Linux · macOS · Web
 
 [![tests](https://github.com/Nixer1337/KlipschRemote/actions/workflows/tests.yml/badge.svg)](https://github.com/Nixer1337/KlipschRemote/actions/workflows/tests.yml)
-[![build](https://github.com/Nixer1337/KlipschRemote/actions/workflows/build.yml/badge.svg)](https://github.com/Nixer1337/KlipschRemote/actions/workflows/build.yml)
 [![release](https://img.shields.io/github/v/release/Nixer1337/KlipschRemote?label=release&sort=semver)](https://github.com/Nixer1337/KlipschRemote/releases/latest)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
@@ -23,6 +22,47 @@ A desktop remote and Python library for Klipsch powered speakers. Volume, input,
 native BLE control protocol, with one code path for every OS. Ships as a friendly
 GUI, a CLI, an importable async library, and a **no-install browser app**
 ([Web Bluetooth](web/README.md)).
+
+## ✨ Features
+
+Everything the official Klipsch Connect app does over BLE, in a faster native/web
+client:
+
+**Sound**
+- **Volume & mute** — and the slider tracks the speaker's **physical knob in real
+  time** (live BLE notifications), so turning the dial on the unit moves it on screen.
+- **Input switching** — TV, Bluetooth, Optical, USB, Analog (aux) and Phono.
+- **3-band equalizer** — Bass / Mid / Treble (−10…+6) with one-tap presets:
+  Flat, Vocal, Bass, Rock and Boom.
+- **Dynamic Bass** — a fuller low end at quiet listening levels.
+- **Night Mode** — tames loud peaks and lifts quiet detail for low-volume listening.
+- **Speaker placement** — boundary-gain compensation for Corner / Wall / Open positions.
+
+**Subwoofer** (auto-detected — the section greys out when no sub is connected)
+- Sub **level** (dB), **mute**, and **phase invert**.
+
+**Playback**
+- Transport controls — **play / pause · next · previous**.
+
+**Device**
+- **Rename** the speaker and toggle **Auto Standby** (sleep after silence).
+- **About** page — model, firmware / software / hardware revision, serial, MAC and
+  system ID, all read straight off the speaker.
+- **Factory reset**, behind a confirmation.
+- **Model auto-detection** across The Fives / Sevens / Nines (incl. McLaren).
+
+**Desktop conveniences**
+- **Connect on launch** (auto-reconnect by address), **launch on startup**, and
+  **close-to-tray** (Windows).
+
+### Four ways to use it
+
+| | |
+|---|---|
+| 🖥️ **Desktop GUI** | Native Windows / Linux / macOS app (Flet → Flutter), fast BLE connect. |
+| 🌐 **Web app** | Zero-install browser remote over Web Bluetooth (Chrome / Edge / Opera, desktop **and** Android). Installable as a PWA, works offline. |
+| ⌨️ **CLI / REPL** | `python -m klipsch_ble` — one-shot commands or an interactive shell, exposing the full protocol. |
+| 🐍 **Python library** | `from klipsch_ble import KlipschClient` — an async client to script your speaker. |
 
 ## 📸 Screenshots
 
