@@ -92,9 +92,10 @@
       els.modelName.textContent = client.modelDisplay;
       await loadAll();
       await loadDeviceInfo(); // read device info once, up front (seeds the Name row)
-      // Live volume — the only thing the speaker pushes (the knob). The slider
-      // then follows the physical knob; everything else changes only via this UI.
-      await client.subscribeVolume((raw) => setRange(els.volume, raw));
+      // Go reactive: the speaker pushes volume (knob) plus mute and input (IR
+      // remote), so the controls follow them live. A knob-driven input change is
+      // the one thing it doesn't notify (see KlipschClient.subscribe).
+      await client.subscribe(onNotify);
       showScreen("remote");
     } catch (e) {
       console.error(e);
@@ -156,8 +157,9 @@
 
     els.powermode.checked = !!st.power_mode;
 
-    // Speaker placement (boundary gain) isn't part of status() — read it on its
-    // own, like the desktop does when Settings opens.
+    // Speaker placement (boundary gain) isn't part of status() — read it with its
+    // own call, but still here at connect (like the desktop). The Settings screen
+    // is just a show/hide of already-seeded DOM, so it never re-reads or flickers.
     const placement = await guard(() => client.getPlacement(), "Couldn't read placement");
     if (placement != null) reflectPlacement(K.placementName(placement));
   }
@@ -218,9 +220,28 @@
       els.inputGrid.append(tile);
     }
   }
-  async function onInput(key) {
+  function highlightInput(key) {
     for (const t of els.inputGrid.children) t.classList.toggle("active", t.dataset.input === key);
+  }
+  async function onInput(key) {
+    highlightInput(key);
     await guard(() => client.setInput(key), "Couldn't switch input");
+  }
+
+  // ---- live notifications --------------------------------------------------
+  // Mirror a pushed change into the matching control. Pure UI — never writes
+  // back, so it can't loop with the change that triggered it. The speaker pushes
+  // volume (knob), mute and input (IR remote); a knob-driven input change is the
+  // one thing it doesn't notify (see KlipschClient.subscribe).
+  function onNotify(field, value) {
+    if (field === "volume_raw") {
+      setRange(els.volume, value);
+    } else if (field === "mute") {
+      els.mute.dataset.on = value ? "1" : "";
+      reflectMute(els.muteBtn, !!value);
+    } else if (field === "input") {
+      highlightInput(value);
+    }
   }
 
   // ---- range helpers -------------------------------------------------------
@@ -256,6 +277,9 @@
   }
   async function applyBands(b, m, t) {
     setRange(els.eqBass, b); setRange(els.eqMid, m); setRange(els.eqTreble, t);
+    // Keep the preset combo in step (mirrors the desktop's _reflect_eq): a reset
+    // to flat lands on "Flat", a preset stays on its name, anything else "Custom".
+    syncPresetFromBands();
     await guard(async () => {
       await client.setEq("bass", b);
       await client.setEq("mid", m);
@@ -293,6 +317,59 @@
       els.confirmCancel.onclick = () => done(false);
     });
   }
+
+  // ---- Material polish: ink ripples + slider value bubble ------------------
+  // A delegated pointerdown spawns an expanding circle from the press point on
+  // any tappable surface, matching Flutter's InkWell. Cosmetic only; one global
+  // listener covers dynamically-created tiles too.
+  function attachRipples() {
+    const SEL = ".input-tile, .btn, .iconbtn, .list-item.ink, .list-head, .segment";
+    document.addEventListener("pointerdown", (e) => {
+      if (e.button) return; // primary button / touch only
+      const host = e.target.closest(SEL);
+      if (!host || host.disabled) return;
+      const rect = host.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height) * 2;
+      const ink = document.createElement("span");
+      ink.className = "ripple";
+      ink.style.width = ink.style.height = `${size}px`;
+      ink.style.left = `${e.clientX - rect.left - size / 2}px`;
+      ink.style.top = `${e.clientY - rect.top - size / 2}px`;
+      ink.addEventListener("animationend", () => ink.remove());
+      host.appendChild(ink);
+    });
+  }
+
+  // The desktop sliders show a value bubble above the thumb while dragging; ride
+  // a matching label to mirror that. `format(value)` makes the text (raw step,
+  // "N dB", or signed EQ level). `vertical` flips the thumb-tracking axis for the
+  // EQ bands (higher value at top).
+  function attachSliderBubble(slider, format, vertical = false) {
+    const THUMB = vertical ? 22 : 20;
+    const bubble = document.createElement("div");
+    bubble.className = "slider-bubble";
+    bubble.hidden = true;
+    document.body.appendChild(bubble);
+    const place = () => {
+      const r = slider.getBoundingClientRect();
+      const min = Number(slider.min), max = Number(slider.max), val = Number(slider.value);
+      const f = max > min ? (val - min) / (max - min) : 0;
+      if (vertical) {
+        bubble.style.left = `${r.left + r.width / 2}px`;
+        bubble.style.top = `${r.top + THUMB / 2 + (1 - f) * (r.height - THUMB)}px`;
+      } else {
+        bubble.style.left = `${r.left + THUMB / 2 + f * (r.width - THUMB)}px`;
+        bubble.style.top = `${r.top}px`;
+      }
+      bubble.textContent = format(val);
+    };
+    slider.addEventListener("pointerdown", () => { place(); bubble.hidden = false; });
+    slider.addEventListener("input", () => { if (!bubble.hidden) place(); });
+    for (const ev of ["pointerup", "pointercancel", "blur"])
+      slider.addEventListener(ev, () => { bubble.hidden = true; });
+  }
+  // Signed EQ level, matching the desktop VSlider bubble ("+6" / "0" / "-3").
+  const eqBubbleFmt = (v) => (v > 0 ? `+${v}` : String(v));
 
   // ---- wire ----------------------------------------------------------------
   function init() {
@@ -404,6 +481,15 @@
     els.powermode.addEventListener("change", () =>
       guard(() => client.setPowerMode(els.powermode.checked), "Couldn't toggle auto-standby"));
     els.factoryReset.addEventListener("click", onFactoryReset);
+
+    // Material polish — ink ripples everywhere + the drag value bubble on the
+    // horizontal sliders (volume = raw step, sub = dB), matching the desktop.
+    attachRipples();
+    attachSliderBubble(els.volume, (v) => String(v));
+    attachSliderBubble(els.subLevel, (v) => `${v} dB`);
+    attachSliderBubble(els.eqBass, eqBubbleFmt, true);
+    attachSliderBubble(els.eqMid, eqBubbleFmt, true);
+    attachSliderBubble(els.eqTreble, eqBubbleFmt, true);
   }
 
   function bindBand(slider, channel) {

@@ -115,9 +115,10 @@ def remote_controls(r: KlipschRemote) -> list[ft.Control]:
         return ft.Card(ft.Container(
             ft.Column([head, *content], spacing=12, tight=True), padding=16))
 
-    # Just the centred speaker name. No refresh button — the speaker only pushes
-    # volume (live via subscribe); everything else changes solely through this UI,
-    # so nothing goes stale. No back-arrow either: disconnect lives in Settings (an
+    # Just the centred speaker name. No refresh button — the speaker pushes volume
+    # (knob) plus mute and input (IR remote) live via subscribe; everything else
+    # changes solely through this UI, so nothing goes stale. No back-arrow either:
+    # disconnect lives in Settings (an
     # arrow in this spot was too easy to hit by reflex, dropping the connection).
     header = ft.Row(
         [ft.Container(r.model_text, expand=True, alignment=ft.Alignment.CENTER)],

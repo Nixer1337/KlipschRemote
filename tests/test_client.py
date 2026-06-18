@@ -342,23 +342,30 @@ class NotifyFake(FakeBleak):
         self.subs[char](bytes(data))
 
 
-def test_subscribe_only_volume_is_live():
-    """The speaker only pushes master volume (the physical knob is its sole
-    on-device control). ``subscribe`` wires up exactly that one characteristic,
-    decodes its level and clamps out-of-range bytes."""
+def test_subscribe_wires_volume_mute_and_input():
+    """``subscribe`` wires up master volume (the physical knob) plus the mute /
+    input channels (pushed by the IR remote), decoding each pushed value: volume
+    is clamped, mute -> bool, input byte -> canonical name."""
     fake = NotifyFake()
     events: list[tuple[str, object]] = []
 
     async def go():
         async with make_client(fake) as client:
             await client.subscribe(lambda field, value: events.append((field, value)))
-            # ONLY the volume char is subscribed — nothing else is live
-            assert list(fake.subs) == [c.CH_MASTER_VOLUME]
+            assert list(fake.subs) == [c.CH_MASTER_VOLUME, c.CH_MUTE, c.CH_INPUT]
             fake.push(c.CH_MASTER_VOLUME, bytes([20]))
             fake.push(c.CH_MASTER_VOLUME, bytes([200]))  # over-range -> clamped
+            fake.push(c.CH_MUTE, bytes([1]))
+            fake.push(c.CH_INPUT, bytes([c.Input.OPTICAL.value]))
+            fake.push(c.CH_INPUT, bytes([99]))  # unknown input byte -> dropped
 
     run(go())
-    assert events == [("volume_raw", 20), ("volume_raw", c.MAX_VOLUME_RAW)]
+    assert events == [
+        ("volume_raw", 20),
+        ("volume_raw", c.MAX_VOLUME_RAW),
+        ("mute", True),
+        ("input", "optical"),
+    ]
 
 
 def test_subscribe_drops_empty_volume_push():

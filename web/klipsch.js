@@ -369,22 +369,32 @@
     setMute(on) { return this.writeByte(CH_MUTE, on ? 1 : 0); }
 
     // --- live notifications ---
-    // Master volume is the ONLY thing the speaker pushes — the physical knob is
-    // its sole on-device control; input / EQ / subwoofer / etc. all change
-    // silently. So we subscribe to volume alone (the slider then follows the
-    // knob) and read everything else once at connect. Best-effort: if
-    // notifications can't start, the remote still works, just without live volume.
-    async subscribeVolume(onChange) {
-      try {
-        const c = await this._char(CH_MASTER_VOLUME);
-        c.addEventListener("characteristicvaluechanged", (e) => {
-          const dv = e.target.value;
-          if (dv && dv.byteLength) onChange(clamp(dv.getUint8(0), 0, MAX_VOLUME_RAW));
-        });
-        await c.startNotifications();
-      } catch (e) {
-        /* notifications are a nicety — never block the remote */
-      }
+    // The speaker pushes volume (the physical knob), plus mute and input when
+    // driven by the IR remote — all hardware-confirmed. `onChange(field, value)`
+    // fires with ("volume_raw", int) / ("mute", bool) / ("input", name). The one
+    // gap: changing the input on the speaker's own knob (press-to-cycle source)
+    // does NOT notify; only the IR remote does. Everything else (EQ / sub /
+    // standby) is read once at connect. Best-effort per characteristic: if a
+    // subscription can't start, the remote still works, just without that field.
+    async subscribe(onChange) {
+      const wire = async (charUuid, decode) => {
+        try {
+          const c = await this._char(charUuid);
+          c.addEventListener("characteristicvaluechanged", (e) => {
+            const dv = e.target.value;
+            if (dv && dv.byteLength) decode(dv);
+          });
+          await c.startNotifications();
+        } catch (e) {
+          /* notifications are a nicety — never block the remote */
+        }
+      };
+      await wire(CH_MASTER_VOLUME, (dv) => onChange("volume_raw", clamp(dv.getUint8(0), 0, MAX_VOLUME_RAW)));
+      await wire(CH_MUTE, (dv) => onChange("mute", !!dv.getUint8(0)));
+      await wire(CH_INPUT, (dv) => {
+        try { onChange("input", inputName(dv.getUint8(0))); }
+        catch (e) { /* unknown input byte — ignore the stray push */ }
+      });
     }
 
     // --- input ---

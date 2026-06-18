@@ -283,10 +283,16 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
   content: ""; position: absolute; top: 50%; left: 8px;
   width: 16px; height: 16px; border-radius: 50%;
   background: var(--outline); transform: translateY(-50%);
-  transition: left 0.18s, width 0.18s, height 0.18s, background 0.18s;
+  box-shadow: 0 0 0 0 transparent;
+  transition: left 0.18s, width 0.18s, height 0.18s, background 0.18s, box-shadow 0.18s;
 }
 .switch:checked { background: var(--primary); border-color: var(--primary); }
 .switch:checked::after { left: 24px; width: 24px; height: 24px; background: #fff; }
+/* M3 state layer: a translucent halo grows around the thumb on hover/press. */
+.switch:hover::after { box-shadow: 0 0 0 8px color-mix(in srgb, var(--on-surface, #e8eaed) 8%, transparent); }
+.switch:active::after { box-shadow: 0 0 0 10px color-mix(in srgb, var(--on-surface, #e8eaed) 12%, transparent); }
+.switch:checked:hover::after { box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 14%, transparent); }
+.switch:checked:active::after { box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary) 20%, transparent); }
 
 /* Sliders (horizontal) — blue fill via the --p variable, set in JS ---------- */
 .slider {
@@ -298,13 +304,31 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
   height: 6px; border-radius: 999px;
   background: linear-gradient(to right, var(--primary) var(--p), var(--outline-variant) var(--p));
 }
+/* 20px thumb (Flutter's default Material slider) with a subtle elevation shadow;
+   a translucent "overlay" halo grows around it on hover/press, like Flet. */
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none; margin-top: -7px;
-  width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--primary);
+  width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transition: box-shadow 0.15s;
+}
+.slider:hover::-webkit-slider-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 8px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.slider:active::-webkit-slider-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 10px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 .slider::-moz-range-track { height: 6px; border-radius: 999px; background: var(--outline-variant); }
 .slider::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--primary); }
-.slider::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--primary); }
+.slider::-moz-range-thumb {
+  width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transition: box-shadow 0.15s;
+}
+.slider:hover::-moz-range-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 8px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.slider:active::-moz-range-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 10px color-mix(in srgb, var(--primary) 22%, transparent);
+}
 
 /* Sliders (vertical EQ bands) ---------------------------------------------- */
 .vslider {
@@ -317,13 +341,19 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
   width: 6px; border-radius: 999px;
   background: linear-gradient(to top, var(--primary) var(--p), var(--outline-variant) var(--p));
 }
+/* 22px thumb with a drop shadow, matching the desktop's custom VSlider (which
+   has no overlay halo — so neither does this one). */
 .vslider::-webkit-slider-thumb {
-  -webkit-appearance: none; margin-left: -6px;
-  width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--primary);
+  -webkit-appearance: none; margin-left: -8px;
+  width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--primary);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
 }
 .vslider::-moz-range-track { width: 6px; border-radius: 999px; background: var(--outline-variant); }
 .vslider::-moz-range-progress { width: 6px; border-radius: 999px; background: var(--primary); }
-.vslider::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--primary); }
+.vslider::-moz-range-thumb {
+  width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--primary);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+}
 
 /* Select / fields ----------------------------------------------------------- */
 .select {
@@ -355,6 +385,34 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .segment.active { background: var(--active-tile); color: var(--primary); }
 .segment.active .mi { color: var(--primary); }
 .placement-hint { font-size: 11px; line-height: 1.4; }
+
+/* Material ink ripple + slider value indicator ------------------------------ */
+/* Flutter paints an InkWell ripple on every tappable surface; reproduce it with
+   an expanding circle spawned at the press point (see attachRipples in app.js).
+   The hosts must clip it and establish a positioning context. */
+.input-tile, .btn, .iconbtn, .list-item.ink, .list-head, .segment {
+  position: relative;
+  overflow: hidden;
+}
+.ripple {
+  position: absolute; border-radius: 50%;
+  background: currentColor; opacity: 0.16;
+  transform: scale(0); pointer-events: none;
+  animation: ripple-expand 0.5s ease-out;
+}
+@keyframes ripple-expand { to { transform: scale(1); opacity: 0; } }
+
+/* The value bubble that rides a horizontal slider's thumb while dragging — the
+   web counterpart of the desktop Flet slider's `label=` indicator. */
+.slider-bubble {
+  position: fixed; z-index: 25; pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  background: var(--primary); color: var(--on-primary);
+  /* weight 500 = Flutter's default value-indicator (labelMedium), not bold */
+  font-size: 12px; font-weight: 500; line-height: 1;
+  padding: 6px 10px; border-radius: 10px; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
 
 /* Banners / toast / dialog -------------------------------------------------- */
 .banner { border-radius: 12px; padding: 14px 16px; margin: 12px; }

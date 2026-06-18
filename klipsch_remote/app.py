@@ -212,14 +212,13 @@ class KlipschRemote:
         self._present(screens.remote_controls(self), key="remote")
 
     def show_settings(self) -> None:
-        """The Settings screen. Only auto-standby (PowerMode) is read lazily on
-        open (via ``after``) — it's not part of the main status read. The
-        subwoofer is NOT re-read here: its state came with the last status()
-        (connect / Refresh) and the card is built from that cache, so opening
-        this tab is instant and doesn't visibly re-run detection."""
+        """The Settings screen. Nothing is read on open: the subwoofer, auto-
+        standby (PowerMode) and speaker placement all came with the connect-time
+        read (``_load_state``) and live in persistent controls, so the card is
+        built straight from that cache — opening the tab is instant, with no
+        visible late switch and no re-run detection."""
         self.page.scroll = None
-        self._present(screens.settings_controls(self), key="settings",
-                      after=self._load_settings_extras)
+        self._present(screens.settings_controls(self), key="settings")
 
     def show_about(self) -> None:
         """The About page (Settings > Product > About).
@@ -260,10 +259,11 @@ class KlipschRemote:
 
         Optimistic UI, by design: the control handlers mirror each change into
         the UI right away and do NOT roll it back if the write here fails — they
-        only report it via the snackbar. The speaker pushes no state except
-        volume (see ``KlipschClient.subscribe``; input / EQ / sub / standby all
-        change silently) and there is no polling or refresh, so the UI is the
-        source of truth for everything else. A failed write is therefore
+        only report it via the snackbar. The speaker only pushes volume (knob),
+        mute and input (IR remote) live (see ``KlipschClient.subscribe``); EQ /
+        sub / standby and knob-driven input changes change silently, and there is
+        no polling or refresh, so the UI is the source of truth for those. A
+        failed write is therefore
         surfaced but left in place; the value reconciles on the next connect,
         which re-reads the full state.
         """
@@ -365,7 +365,7 @@ class KlipschRemote:
         # Show the loading screen here so every entry point — the Connect button
         # AND startup auto-connect — gets the same connecting indication.
         self._device_info = None  # new connection: drop any cached device info
-        self.show_connecting(f"Connecting to {address} …")
+        self.show_connecting(f"Connecting to {address}…")
         # BLE connects fail intermittently — the very first one after launch, a
         # speaker waking from standby, or a quick relaunch where the previous
         # process's GATT link hasn't been released yet — so retry a few times
@@ -389,7 +389,7 @@ class KlipschRemote:
                 if attempt < attempts:
                     self.connecting_status.value = (
                         f"Attempt {attempt} didn't take — retrying "
-                        f"({attempt + 1}/{attempts}) …")
+                        f"({attempt + 1}/{attempts})…")
                     self.page.update()
                     await asyncio.sleep(1.2)
         if last_exc is not None:
@@ -400,7 +400,7 @@ class KlipschRemote:
             save_address(address)  # demo runs never touch the saved address
         # Read the full state on the loading screen, then open an already-
         # populated remote (no flash of empty/disabled controls).
-        self.connecting_status.value = "Reading speaker state …"
+        self.connecting_status.value = "Reading speaker state…"
         self.page.update()
         await self._load_state()
         self.show_remote()
@@ -437,7 +437,7 @@ class KlipschRemote:
         self.page.run_task(self._connect, address)
 
     async def _scan(self) -> None:
-        self._set_busy(True, "Scanning the air for advertising Klipsch …")
+        self._set_busy(True, "Scanning the air for advertising Klipsch…")
         try:
             hits = await discover()
         except Exception as exc:
@@ -462,10 +462,10 @@ class KlipschRemote:
     async def _load_state(self) -> None:
         """Read the full speaker state into the controls once, at connect.
 
-        Everything here changes only through this app's own UI afterwards — the
-        speaker doesn't push these (volume aside, which is live via ``subscribe``)
-        and the knob is its only on-device control. So one read at connect is
-        enough; there's no refresh button and no polling."""
+        Everything here is read once and then reconciled only at the next
+        connect: the speaker pushes volume (knob) plus mute and input (IR remote)
+        live via ``subscribe``, but EQ / sub / standby and knob-driven input
+        changes are silent. So there's no refresh button and no polling."""
         c = self.client
         if c is None:
             return
@@ -501,6 +501,18 @@ class KlipschRemote:
         self._reflect_sub_level(view.sub_level_db)
         self.subinvert_sw.value = view.sub_invert
         self._reflect_sub_mute(view.sub_mute)
+        # Auto-standby (PowerMode) and speaker placement (boundary gain) live on the
+        # Settings screen but are read here too, once — NOT re-read each time the tab
+        # opens. They're the two settings status() doesn't carry, so they're the only
+        # extra connect-time reads. Both feed persistent controls, so opening Settings
+        # just shows the cached value (no visible late switch). Neither can be changed
+        # on the remote or the speaker itself, so this single read is authoritative.
+        standby = await self._guard(lambda c: c.get_toggle(CH_POWERMODE))
+        if standby is not None:
+            self.standby_sw.value = bool(standby)
+        placement = await self._guard(lambda c: c.get_placement())
+        if placement is not None:
+            self._reflect_placement(placement_name(placement))
         # Transport is stateless (single ⏯ command button), so there is nothing
         # to read or reflect here.
         self.page.update()
@@ -521,17 +533,24 @@ class KlipschRemote:
                 pass
 
     def _on_notify(self, field: str, value: object) -> None:
-        """Mirror a pushed volume change into the slider. Runs on the event loop
-        (the client marshals the winrt callback there), so it's safe to touch Flet
-        state and call page.update(). Volume is the only thing the speaker pushes
-        (see ``KlipschClient.subscribe``) — pure UI, never writes back, so it can't
-        loop with the change that triggered it."""
+        """Mirror a pushed change into the matching control. Runs on the event
+        loop (the client marshals the winrt callback there), so it's safe to touch
+        Flet state and call page.update(). Pure UI — never writes back, so it can't
+        loop with the change that triggered it.
+
+        The speaker pushes volume (knob), mute and input (IR remote); see
+        ``KlipschClient.subscribe`` for the one gap — a knob-driven input change
+        doesn't notify, so it won't reflect here until the next connect."""
         if self.client is None:
             return
         try:
             if field == "volume_raw":
                 self.vol_slider.value = value
-                self.page.update()
+            elif field == "mute":
+                self._reflect_mute(bool(value))
+            elif field == "input":
+                self._reflect_input(str(value))
+            self.page.update()
         except Exception:  # a stray push must never crash the UI loop
             pass
 
@@ -747,8 +766,8 @@ class KlipschRemote:
     def _safe_update(*controls: ft.Control) -> None:
         """``.update()`` controls that may no longer be on the page.
 
-        Settings/About state is fetched over BLE *after* the screen is shown
-        (see ``_load_settings_extras`` / ``_load_device_info``). If the user
+        About state can be fetched over BLE *after* the screen is shown when the
+        connect-time read failed (see ``_load_device_info``). If the user
         navigates away before that slow read returns, the AnimatedSwitcher has
         already swapped the screen's controls out and Flet's ``.update()`` raises
         "Control must be added to the page first". A detached control is a no-op
@@ -773,31 +792,6 @@ class KlipschRemote:
         self._device_info = di
         self._apply_device_info()
         self._safe_update(*self.about_values.values(), self.about_status)
-
-    async def _load_settings_extras(self) -> None:
-        """Read the Settings-only speaker state lazily on open: auto-standby
-        (PowerMode) and speaker placement (boundary gain). Neither is part of the
-        main status() read, so they're fetched here when the tab appears."""
-        await self._load_standby()
-        await self._load_placement()
-
-    async def _load_standby(self) -> None:
-        """Read the speaker's auto-standby (PowerMode) state into the switch."""
-        if self.client is None:
-            return
-        val = await self._guard(lambda c: c.get_toggle(CH_POWERMODE))
-        if val is not None:
-            self.standby_sw.value = bool(val)
-            self._safe_update(self.standby_sw)
-
-    async def _load_placement(self) -> None:
-        """Read the speaker's placement (boundary gain) into the segmented button."""
-        if self.client is None:
-            return
-        placement = await self._guard(lambda c: c.get_placement())
-        if placement is not None:
-            self._reflect_placement(placement_name(placement))
-            self._safe_update(self.placement_seg, self.placement_hint_text)
 
     def _on_toggle_autoconnect(self, e: ft.ControlEvent) -> None:
         cfg = load_config()
@@ -1047,7 +1041,7 @@ async def main(page: ft.Page) -> None:
     saved = load_saved_address()
     auto = bool(saved and load_config().get("auto_connect"))
     if auto:
-        remote.show_connecting(f"Connecting to {saved} …")
+        remote.show_connecting(f"Connecting to {saved}…")
     else:
         remote.show_connect()  # builds the first screen, flushes via page.update()
 

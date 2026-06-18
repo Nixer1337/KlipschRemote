@@ -309,31 +309,54 @@ class KlipschClient:
         await self._require_client().start_notify(char_uuid, forward)
 
     async def subscribe(self, on_change: Callable[[str, object], None]) -> None:
-        """Subscribe to live master-volume notifications.
+        """Subscribe to the live change notifications the speaker pushes.
 
-        ``on_change("volume_raw", level)`` is invoked — on the transport's event
-        loop — each time the speaker pushes a new volume (the user turns the
-        physical knob). Volume is the *only* setting the firmware proactively
-        emits: hardware probing shows input / EQ / subwoofer / standby all change
-        silently, and the knob is the speaker's only on-device control anyway. So
-        everything else is read once at connect and thereafter only changes
-        through this app's own UI. Subscribing to volume alone also keeps connect
-        fast — one CCCD write instead of fifteen.
+        ``on_change(field, value)`` is invoked — on the transport's event loop —
+        each time the speaker pushes a new value:
 
-        Best-effort and additive: if the notification can't be set up the client
-        keeps working exactly as before, just without live volume. Torn down by
-        :meth:`disconnect`.
+          * ``("volume_raw", int)`` — the physical volume knob.
+          * ``("mute", bool)`` — the IR remote's Mute button.
+          * ``("input", str)`` — the IR remote's Source button.
+
+        Hardware-confirmed: the firmware emits all three live. There is one gap —
+        changing the *input* on the speaker's own knob (press-to-cycle source)
+        does NOT notify; only an IR-remote source change does. Volume from the
+        knob does notify. So a knob-driven input change still can't be observed
+        without polling, which this app avoids. Everything else (EQ / sub /
+        standby) is read once at connect and otherwise only changes through this
+        app's own UI.
+
+        Best-effort and additive, per characteristic: a unit that doesn't honour
+        notify on one of these simply never gets that field, and the rest keep
+        working. Torn down by :meth:`disconnect`.
         """
         self._require_client()
 
-        def on_bytes(data: bytes) -> None:
+        def on_volume(data: bytes) -> None:
             if data:
                 on_change("volume_raw", clamp(data[0], 0, MAX_VOLUME_RAW))
 
-        try:
-            await self._start_notify(CH_MASTER_VOLUME, on_bytes)
-        except Exception:  # notify unsupported on this unit — skip, never raise
-            pass
+        def on_mute(data: bytes) -> None:
+            if data:
+                on_change("mute", bool(data[0]))
+
+        def on_input(data: bytes) -> None:
+            if not data:
+                return
+            try:
+                on_change("input", input_name(data[0]))
+            except ValueError:  # unknown input byte — ignore the stray push
+                pass
+
+        for char, handler in (
+            (CH_MASTER_VOLUME, on_volume),
+            (CH_MUTE, on_mute),
+            (CH_INPUT, on_input),
+        ):
+            try:
+                await self._start_notify(char, handler)
+            except Exception:  # notify unsupported on this char/unit — skip, never raise
+                pass
 
     # --- volume / mute ---
     async def get_volume_raw(self) -> int:

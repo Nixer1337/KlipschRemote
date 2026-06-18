@@ -18,7 +18,7 @@
  */
 "use strict";
 
-const VERSION = "v7";
+const VERSION = "v8";
 const SHELL_CACHE = `klipsch-shell-${VERSION}`;
 const RUNTIME_CACHE = `klipsch-runtime-${VERSION}`;
 

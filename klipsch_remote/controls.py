@@ -175,7 +175,7 @@ def build_controls(r: KlipschRemote) -> None:
     # the speaker sits, which sets how much bass it adds back (CH_BOUNDARY_
     # GAIN). Segment values are the placement names (corner/wall/open) so
     # they pass straight to client.set_placement. WALL is the speaker's
-    # default until the real value is read on open (_load_placement).
+    # default until the real value is read once at connect (_load_state).
     # NB: `selected` MUST be a list, not a set — Flet msgpack-serializes the
     # control tree and a set raises "can not serialize 'set' object".
     r._placement = "wall"
